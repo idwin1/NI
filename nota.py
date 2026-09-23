@@ -50,7 +50,13 @@ class NotaInstalacionManager:
 
     def _cargar_config(self):
         if not os.path.exists(self.config_path): return
-        with open(self.config_path, "r", encoding="utf-8") as f: data = json.load(f)
+        try:
+            with open(self.config_path, "r", encoding="utf-8") as f: 
+                data = json.load(f)
+        except json.JSONDecodeError:
+            print("El archivo config.json está corrupto. Cargando configuración por defecto.")
+            data = {"personas": [], "equipos": {}, "azure": {}}
+
         data.setdefault("personas", [])
         data.setdefault("equipos", {})
         data.setdefault("azure", {})
@@ -83,16 +89,31 @@ class NotaInstalacionManager:
         
         # Obtenemos la lista de proyectos de forma segura
         return azure_data.get("proyectos", [])
-    def listar_proyectos_nota_configurados(self): return self._data_cache["azure"]["proyectos_nota"]
+
+    def listar_proyectos_nota_configurados(self): 
+        return self._data_cache.get("azure", {}).get("proyectos_nota", [])
+    
     def agregar_proyecto(self, tipo, nombre):
         clave = "proyectos" if tipo == "azure" else "proyectos_nota"
+        
+        # Inicialización segura
+        if "azure" not in self._data_cache:
+            self._data_cache["azure"] = {}
+        if clave not in self._data_cache["azure"]:
+            self._data_cache["azure"][clave] = []
+            
         if nombre not in self._data_cache["azure"][clave]:
             self._data_cache["azure"][clave].append(nombre)
             self.guardar_config()
+
     def eliminar_proyecto(self, tipo, nombre):
         clave = "proyectos" if tipo == "azure" else "proyectos_nota"
-        if nombre in self._data_cache["azure"][clave]:
-            self._data_cache["azure"][clave].remove(nombre)
+        
+        # Extracción segura
+        lista_proyectos = self._data_cache.get("azure", {}).get(clave, [])
+        if nombre in lista_proyectos:
+            lista_proyectos.remove(nombre)
+            self._data_cache["azure"][clave] = lista_proyectos
             self.guardar_config()
 
     def _validar_listo_azure(self):
@@ -728,7 +749,7 @@ class NotaApp(ctk.CTk):
         f_cen = ctk.CTkFrame(bottom, fg_color="transparent")
         f_cen.grid(row=0, column=1, sticky="nsew", padx=15, pady=15)
         ctk.CTkLabel(f_cen, text="Equipo de escalamiento:", font=FUENTE_TEXTO).pack(anchor="w", padx=5)
-        self.combo_equipo_manual = ctk.CTkComboBox(f_cen, values=["-- Todas las personas --"] + self.manager.listar_nombres_equipos(), font=FUENTE_TEXTO, height=35)
+        self.combo_equipo_manual = ctk.CTkComboBox(f_cen, values=["-- Todas las personas --"] + self.manager.listar_nombres_equipos(), font=FUENTE_TEXTO, height=35,state="readonly")
         self.combo_equipo_manual.pack(fill="x", padx=5, pady=(2, 5))
         self.check_incluir_escalamiento_manual = ctk.BooleanVar(value=True)
         ctk.CTkCheckBox(f_cen, text="Incluir escalamiento", variable=self.check_incluir_escalamiento_manual, font=FUENTE_TEXTO, fg_color=C_PRIMARY).pack(anchor="w", padx=5, pady=5)
@@ -936,7 +957,7 @@ class NotaApp(ctk.CTk):
         self.text_backup_pasos.pack(fill="x", padx=15, pady=(2, 15))
 
         ctk.CTkLabel(der, text="Equipo para escalamiento:", font=FUENTE_TEXTO).pack(anchor="w", padx=15, pady=(10, 0))
-        self.combo_equipo_azure = ctk.CTkComboBox(der, values=["-- Todas las personas --"] + self.manager.listar_nombres_equipos(), font=FUENTE_TEXTO, height=35)
+        self.combo_equipo_azure = ctk.CTkComboBox(der, values=["-- Todas las personas --"] + self.manager.listar_nombres_equipos(), font=FUENTE_TEXTO, height=35,state="readonly")
         self.combo_equipo_azure.pack(fill="x", padx=15, pady=(2, 20))
 
         ctk.CTkButton(der, text="🧾 Generar Nota Completa", font=FUENTE_SUBTITULO, height=50, fg_color=C_SUCCESS, hover_color="#059669", command=self._generar_nota_azure).pack(fill="x", padx=15, pady=10)
