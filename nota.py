@@ -452,10 +452,35 @@ class NotaInstalacionManager:
         for p in personas: partes.extend([f"{p['puesto']}: {p['nombre']}", f"Teléfono: {p['telefono']}", f"Email: {p['email']}", ""])
         return "\n".join(partes).rstrip()
 
+    def bloque_rutas_repositorio(self, componentes, rollback_zip=None):
+        lineas = ["Ruta repositorio de código:\n"]
+        
+        # Agrega las rutas de todos los componentes principales (estén vacías o no)
+        for c in componentes:
+            lineas.append(c["nombre"])
+            lineas.append(f"Ruta de drive: {c.get('drive', '')}")
+            lineas.append(f"Ruta de Azure: {c.get('azure', '')}")
+            lineas.append("") # Salto de línea visual
+            
+        # Agrega las rutas del ZIP de rollback principal si existe
+        if rollback_zip:
+            lineas.append(rollback_zip["nombre"])
+            lineas.append(f"Ruta de drive: {rollback_zip.get('drive', '')}")
+            lineas.append(f"Ruta azure: {rollback_zip.get('azure', '')}")
+            lineas.append("")
+            
+        return "\n".join(lineas).rstrip()
+
     def armar_nota_manual(self, componentes, excepto="N/A", rollback_zip=None, equipo_escalamiento=None, incluir_escalamiento=True):
         partes = [self.bloque_componentes_manual(componentes), f"Excepto a:\n{excepto}"]
-        if rollback_zip: partes.append(self.bloque_rollback_manual(rollback_zip["nombre"], rollback_zip["md5"], rollback_zip["drive"], rollback_zip.get("componentes", [])))
-        if incluir_escalamiento: partes.append(self.bloque_escalamiento(self.obtener_escalamiento_de_equipo(equipo_escalamiento) if equipo_escalamiento and equipo_escalamiento != "-- Todas las personas --" else self.obtener_escalamiento()))
+        
+        if rollback_zip: 
+            partes.append(self.bloque_rollback_manual(rollback_zip["nombre"], rollback_zip["md5"], rollback_zip["drive"], rollback_zip.get("componentes", [])))  
+        # --- SE INYECTA EL BLOQUE DE RUTAS (Siempre visible) ---
+        partes.append(self.bloque_rutas_repositorio(componentes, rollback_zip))
+        if incluir_escalamiento: 
+            partes.append(self.bloque_escalamiento(self.obtener_escalamiento_de_equipo(equipo_escalamiento) if equipo_escalamiento and equipo_escalamiento != "-- Todas las personas --" else self.obtener_escalamiento()))
+ 
         return "\n\n".join(partes)
 
     def bloque_azure_componente(self, info, variables=None, tag_version="", commit_properties="", url_properties="", commit_environment="", url_environment=""):
@@ -556,7 +581,7 @@ class PipelineReleaseSearchDialog(ctk.CTkToplevel):
         self.on_seleccionar(release)
         self.destroy()
 
-    # ===========================================================
+# ===========================================================
 # DIÁLOGO PERSONALIZADO PARA TOKEN AZURE
 # ===========================================================
 class DialogoTokenAzure(ctk.CTkToplevel):
@@ -608,6 +633,55 @@ class DialogoTokenAzure(ctk.CTkToplevel):
         self.master.wait_window(self)
         return self.valor
 
+# ===========================================================
+# DIÁLOGO PERSONALIZADO PARA ENTRADAS DE TEXTO
+# ===========================================================
+class DialogoEntradaTexto(ctk.CTkToplevel):
+    def __init__(self, master, titulo, mensaje):
+        super().__init__(master)
+        self.title(titulo)
+        self.geometry("400x200")
+        self.resizable(False, False)
+        self.configure(fg_color=C_BG)
+        self.valor = None
+        
+        self.transient(master)
+        self.grab_set()
+
+        # Centrar la ventanita
+        self.update_idletasks()
+        x = (self.winfo_screenwidth() // 2) - (400 // 2)
+        y = (self.winfo_screenheight() // 2) - (200 // 2)
+        self.geometry(f"+{x}+{y}")
+
+        # Diseño UI acorde a tu tema
+        ctk.CTkLabel(self, text=mensaje, font=FUENTE_SUBTITULO, text_color=C_PRIMARY).pack(pady=(25, 10))
+        
+        self.entry = ctk.CTkEntry(self, font=FUENTE_TEXTO, width=320, height=35)
+        self.entry.pack(pady=(0, 20))
+        self.entry.focus() # Pone el cursor automáticamente en la caja
+        
+        # Permitir guardar con la tecla Enter
+        self.entry.bind("<Return>", lambda e: self._guardar())
+
+        btn_frame = ctk.CTkFrame(self, fg_color="transparent")
+        btn_frame.pack()
+
+        ctk.CTkButton(btn_frame, text="💾 Guardar", font=FUENTE_TEXTO, width=110, height=35, fg_color=C_SUCCESS, hover_color="#059669", command=self._guardar).pack(side="left", padx=10)
+        ctk.CTkButton(btn_frame, text="Cancelar", font=FUENTE_TEXTO, width=110, height=35, fg_color=C_CARD, hover_color="#dc2626", command=self._cancelar).pack(side="left", padx=10)
+
+    def _guardar(self):
+        self.valor = self.entry.get()
+        self.destroy()
+
+    def _cancelar(self):
+        self.valor = None
+        self.destroy()
+
+    def get_input(self):
+        self.master.wait_window(self)
+        return self.valor
+    
 # ===========================================================
 # APP PRINCIPAL
 # ===========================================================
@@ -740,6 +814,22 @@ class NotaApp(ctk.CTk):
 
         self.lbl_rollback = ctk.CTkLabel(der, text="Sin rollback definido.", text_color=C_MUTED, font=FUENTE_TEXTO)
         self.lbl_rollback.pack(anchor="w", padx=15, pady=5)
+
+        # === INTERFAZ FUTURA PARA RUTAS DEL ZIP (COMENTADA) ===
+        """
+        self.rutas_zip_frame = ctk.CTkFrame(der, fg_color="transparent")
+        self.entry_zip_drive = ctk.CTkEntry(self.rutas_zip_frame, placeholder_text="Drive del ZIP", font=FUENTE_CHICA, height=30)
+        self.entry_zip_drive.pack(side="left", fill="x", expand=True, padx=(0, 5))
+        self.entry_zip_azure = ctk.CTkEntry(self.rutas_zip_frame, placeholder_text="Azure del ZIP", font=FUENTE_CHICA, height=30)
+        self.entry_zip_azure.pack(side="left", fill="x", expand=True)
+        
+        self.entry_zip_drive.bind("<KeyRelease>", lambda e: self.rollback_manual.update({"drive": self.entry_zip_drive.get()}) if self.rollback_manual else None)
+        self.entry_zip_azure.bind("<KeyRelease>", lambda e: self.rollback_manual.update({"azure": self.entry_zip_azure.get()}) if self.rollback_manual else None)
+        
+        # Nota: Recuerda agregar self.rutas_zip_frame.pack(...) en _definir_rollback_manual
+        # y self.rutas_zip_frame.pack_forget() en _quitar_rollback_manual cuando lo actives.
+        """
+
         self.lista_rollback_frame = ctk.CTkScrollableFrame(der, fg_color="transparent")
         self.lista_rollback_frame.pack(fill="both", expand=True, padx=5, pady=5)
 
@@ -811,6 +901,33 @@ class NotaApp(ctk.CTk):
             ent_drv.insert(0, comp["drive"])
         ent_drv.bind("<KeyRelease>", lambda e: comp.update({"drive": ent_drv.get()}))
 
+        # === INTERFAZ FUTURA PARA AZURE Y DRIVE (COMENTADA) ===
+        """
+        campos.grid_columnconfigure((0, 1), weight=1)
+        
+        # Fila 0: Cajas IP y BD
+        ent_ip = ctk.CTkEntry(campos, placeholder_text="IP (Opcional)", font=FUENTE_CHICA, height=30)
+        ent_ip.grid(row=0, column=0, sticky="ew", padx=3, pady=3)
+        if comp.get("ip"): ent_ip.insert(0, comp["ip"])
+        ent_ip.bind("<KeyRelease>", lambda e: comp.update({"ip": ent_ip.get()}))
+
+        ent_bd = ctk.CTkEntry(campos, placeholder_text="BD (Opcional)", font=FUENTE_CHICA, height=30)
+        ent_bd.grid(row=0, column=1, sticky="ew", padx=3, pady=3)
+        if comp.get("bd"): ent_bd.insert(0, comp["bd"])
+        ent_bd.bind("<KeyRelease>", lambda e: comp.update({"bd": ent_bd.get()}))
+
+        # Fila 1: Cajas Drive y Azure
+        ent_drv = ctk.CTkEntry(campos, placeholder_text="Ruta Drive", font=FUENTE_CHICA, height=30)
+        ent_drv.grid(row=1, column=0, sticky="ew", padx=3, pady=3)
+        if comp.get("drive"): ent_drv.insert(0, comp["drive"])
+        ent_drv.bind("<KeyRelease>", lambda e: comp.update({"drive": ent_drv.get()}))
+        
+        ent_azr = ctk.CTkEntry(campos, placeholder_text="Ruta Azure", font=FUENTE_CHICA, height=30)
+        ent_azr.grid(row=1, column=1, sticky="ew", padx=3, pady=3)
+        if comp.get("azure"): ent_azr.insert(0, comp["azure"])
+        ent_azr.bind("<KeyRelease>", lambda e: comp.update({"azure": ent_azr.get()}))
+        """
+
     def _on_drag_start(self, event, idx, lista, cb, card_widget):
         self._drag_idx, self._drag_lista, self._drag_refresh_callback = idx, lista, cb
         card_widget.configure(border_width=2, border_color=C_PRIMARY) # Feedback visual
@@ -841,7 +958,7 @@ class NotaApp(ctk.CTk):
 
     def _agregar_componente_manual(self):
         for r in filedialog.askopenfilenames(title="Selecciona archivos"):
-            try: self.componentes_manual.append({"nombre": os.path.basename(r), "md5": self.manager.calcular_md5(r), "ip": "", "bd": "", "drive": ""})
+            try: self.componentes_manual.append({"nombre": os.path.basename(r), "md5": self.manager.calcular_md5(r), "ip": "", "bd": "", "drive": "","azure": ""})
             except Exception as e: messagebox.showerror("Error", f"{r}\n{e}")
         self._refrescar_lista_componentes()
 
@@ -851,7 +968,7 @@ class NotaApp(ctk.CTk):
         except Exception as e: return messagebox.showerror("Error", str(e))
         items = []
         try:
-            for i in self.manager.extraer_componentes_de_zip(r): items.append({**i, "ip": "", "bd": "", "drive": ""})
+            for i in self.manager.extraer_componentes_de_zip(r): items.append({**i, "ip": "", "bd": "", "drive": "","azure": ""})
         except Exception: pass
         self.rollback_manual = {"nombre": os.path.basename(r), "md5": md5_z, "drive": "", "componentes": items}
         self.lbl_rollback.configure(text=f"📦 {self.rollback_manual['nombre']} ({len(items)} archivos)", text_color=C_TEXT)
@@ -860,7 +977,7 @@ class NotaApp(ctk.CTk):
     def _agregar_componente_extra_rollback(self):
         if not self.rollback_manual: return messagebox.showwarning("Aviso", "Primero define el ZIP de rollback.")
         for r in filedialog.askopenfilenames(title="Selecciona archivo(s) extra"):
-            try: self.rollback_manual["componentes"].append({"nombre": os.path.basename(r), "md5": self.manager.calcular_md5(r), "ip": "", "bd": "", "drive": ""})
+            try: self.rollback_manual["componentes"].append({"nombre": os.path.basename(r), "md5": self.manager.calcular_md5(r), "ip": "", "bd": "", "drive": "","azure": ""})
             except Exception as e: messagebox.showerror("Error", f"{r}\n{e}")
         self._refrescar_lista_rollback()
 
@@ -891,17 +1008,53 @@ class NotaApp(ctk.CTk):
         self.combo_modo_captura.pack(side="left", expand=True, fill="x", padx=15, pady=15)
 
         self._crear_label_titulo(izq, "Conexión y Búsqueda")
+
         def crear_fila_proj(parent, label, get_func, tipo):
+            # Función auxiliar para asegurar que siempre devolvemos strings válidos (nunca None)
+            def obtener_valores_limpios():
+                valores_crudos = get_func()
+                if not valores_crudos:
+                    return [""]
+                # Filtra valores None y los convierte a string
+                limpios = [str(v) for v in valores_crudos if v is not None and str(v).strip() != ""]
+                return limpios if limpios else [""]
+
             f = ctk.CTkFrame(parent, fg_color="transparent")
             f.pack(fill="x", padx=15, pady=6)
             ctk.CTkLabel(f, text=label, font=FUENTE_TEXTO).pack(anchor="w")
+            
             box = ctk.CTkFrame(f, fg_color="transparent")
             box.pack(fill="x", pady=(4, 0))
-            cb = ctk.CTkComboBox(box, values=get_func() if get_func() else [""], font=FUENTE_TEXTO, height=35)
+            
+            # Carga inicial segura
+            valores_iniciales = obtener_valores_limpios()
+            cb = ctk.CTkComboBox(box, values=valores_iniciales, font=FUENTE_TEXTO, height=35)
             cb.pack(side="left", fill="x", expand=True)
-            if get_func(): cb.set(get_func()[0])
-            ctk.CTkButton(box, text="➕", width=35, height=35, fg_color=C_CARD, hover_color="#475569", command=lambda: (simpledialog.askstring("Nuevo", "Nombre:") and (self.manager.agregar_proyecto(tipo, n:=simpledialog.askstring("Nuevo", "Nombre:")) or cb.configure(values=get_func()) or cb.set(n)))).pack(side="left", padx=(8, 4))
-            ctk.CTkButton(box, text="🗑", width=35, height=35, fg_color=C_DANGER, hover_color="#dc2626", command=lambda: (self.manager.eliminar_proyecto(tipo, cb.get()), cb.configure(values=get_func()), cb.set(get_func()[0] if get_func() else ""))).pack(side="left")
+            cb.set(valores_iniciales[0])
+
+            def agregar_nuevo():
+                # Mandamos llamar nuestro nuevo diálogo oscuro
+                dialogo = DialogoEntradaTexto(self, "Nuevo Proyecto", "Ingresa el nombre del nuevo proyecto:")
+                n = dialogo.get_input()
+                
+                if n and n.strip():
+                    self.manager.agregar_proyecto(tipo, n.strip())
+                    nuevos = obtener_valores_limpios()
+                    cb.configure(values=nuevos)
+                    cb.set(n.strip())
+
+            def eliminar_actual():
+                val = cb.get()
+                if val:
+                    self.manager.eliminar_proyecto(tipo, val)
+                nuevos = obtener_valores_limpios()
+                cb.configure(values=nuevos)
+                cb.set(nuevos[0])
+
+            # Botones con funciones claras (sin lambdas anidados que causan bugs)
+            ctk.CTkButton(box, text="➕", width=35, height=35, fg_color=C_CARD, hover_color="#475569", command=agregar_nuevo).pack(side="left", padx=(8, 4))
+            ctk.CTkButton(box, text="🗑", width=35, height=35, fg_color=C_DANGER, hover_color="#dc2626", command=eliminar_actual).pack(side="left")
+            
             return cb
 
         self.entry_org_azure = ctk.CTkEntry(izq, placeholder_text="Organización Azure", font=FUENTE_TEXTO, height=35)
