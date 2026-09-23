@@ -1,0 +1,4 @@
+customtkinter
+requests
+psycopg2-binary
+colorama
