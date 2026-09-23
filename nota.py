@@ -76,7 +76,13 @@ class NotaInstalacionManager:
         if not self._data_cache.get("azure", {}).get("pat"): problemas.append("Falta 'pat' dentro de la clave 'azure'.")
         return problemas
 
-    def listar_proyectos_configurados(self): return self._data_cache["azure"]["proyectos"]
+    def listar_proyectos_configurados(self):
+        """Devuelve la lista de proyectos o una lista vacía si no existe, evitando KeyError."""
+        # Obtenemos la sección azure de forma segura
+        azure_data = self._data_cache.get("azure", {})
+        
+        # Obtenemos la lista de proyectos de forma segura
+        return azure_data.get("proyectos", [])
     def listar_proyectos_nota_configurados(self): return self._data_cache["azure"]["proyectos_nota"]
     def agregar_proyecto(self, tipo, nombre):
         clave = "proyectos" if tipo == "azure" else "proyectos_nota"
