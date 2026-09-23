@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import base64
 import hashlib
@@ -30,9 +31,15 @@ FUENTE_SUBTITULO = ("Segoe UI", 13, "bold")
 FUENTE_TEXTO = ("Segoe UI", 12)
 FUENTE_CHICA = ("Segoe UI", 11)
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
+# Detectar si estamos en un ejecutable empaquetado o en código fuente
+if getattr(sys, 'frozen', False):
+    # Si es el .exe, el directorio real es donde está el propio ejecutable
+    BASE_DIR = os.path.dirname(sys.executable)
+else:
+    # Si es script de python, es donde está el script
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
 # ===========================================================
 # CLASE ÚNICA: TODA LA LÓGICA DE NEGOCIO (INTACTA)
 # ===========================================================
