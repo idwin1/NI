@@ -384,11 +384,16 @@ class NotaInstalacionManager:
         return h.hexdigest()
 
     def extraer_componentes_de_zip(self, ruta):
+        blacklist = [".odt", ".doc", ".sh"]
         res = []
         with zipfile.ZipFile(ruta, "r") as z:
             for entry in z.infolist():
-                if not entry.is_dir() and os.path.basename(entry.filename):
-                    res.append({"nombre": os.path.basename(entry.filename), "md5": hashlib.md5(z.read(entry.filename)).hexdigest()})
+                nombre = os.path.basename(entry.filename)
+                # Validamos que no sea carpeta, que tenga nombre y que la extensión no esté bloqueada
+                if not entry.is_dir() and nombre:
+                    ext = os.path.splitext(nombre)[1].lower()
+                    if ext not in blacklist:
+                        res.append({"nombre": nombre, "md5": hashlib.md5(z.read(entry.filename)).hexdigest()})
         return res
 
     def _obtener_puesto(self, p): return next((p[k] for k in self.ALIAS_PUESTO if k in p and p[k]), "Sin puesto")
@@ -435,14 +440,13 @@ class NotaInstalacionManager:
                 partes.append("El siguiente componente:")
             else:
                 partes.append(f"{i}.- Instalar el siguiente componente:")
-            partes.extend([f"Componente: {c['nombre']}", f"MD5: {c['md5']}"])
+            partes.extend([f"Componente: {c['nombre']}", f"MD5: {c['md5']}", f"Drive: {drive}"])
             if drive: partes.append(f"Drive: {drive}")
             partes.append("")
         return "\n".join(partes).rstrip()
 
     def bloque_rollback_manual(self, z_nom, z_md5, z_drv, comps=None):
-        partes = ["Rollback:", z_nom, f"MD5: {z_md5}"]
-        if z_drv: partes.append(f"Drive: {z_drv}")
+        partes = ["Rollback:", z_nom, f"MD5: {z_md5}",f"Drive: {z_drv or ''}"]
         if comps: partes.extend(["", f"En caso de requerir un rollback, deberá descomprimirse el archivo {z_nom} y proceder con la instalación de los siguientes componentes en el orden que se detalla a continuación:", "", self.bloque_componentes_manual(comps)])
         return "\n".join(partes)
 
@@ -476,11 +480,12 @@ class NotaInstalacionManager:
         
         if rollback_zip: 
             partes.append(self.bloque_rollback_manual(rollback_zip["nombre"], rollback_zip["md5"], rollback_zip["drive"], rollback_zip.get("componentes", [])))  
-        # --- SE INYECTA EL BLOQUE DE RUTAS (Siempre visible) ---
-        partes.append(self.bloque_rutas_repositorio(componentes, rollback_zip))
+        
+        
         if incluir_escalamiento: 
             partes.append(self.bloque_escalamiento(self.obtener_escalamiento_de_equipo(equipo_escalamiento) if equipo_escalamiento and equipo_escalamiento != "-- Todas las personas --" else self.obtener_escalamiento()))
- 
+        # --- SE INYECTA EL BLOQUE DE RUTAS (Siempre visible) ---
+        partes.append(self.bloque_rutas_repositorio(componentes, rollback_zip))
         return "\n\n".join(partes)
 
     def bloque_azure_componente(self, info, variables=None, tag_version="", commit_properties="", url_properties="", commit_environment="", url_environment=""):
