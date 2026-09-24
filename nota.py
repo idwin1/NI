@@ -150,7 +150,7 @@ class ToolTip:
 # ===========================================================
 class NotaInstalacionManager:
     ALIAS_PUESTO = ["puesto", "cargo", "rol", "posicion", "posición"]
-    CATEGORIAS_ORDEN = ["Líder de Proyecto", "Arquitecto", "Desarrollador", "Analista de Código"]
+    CATEGORIAS_ORDEN = ["Líder de Proyecto", "Arquitecto", "Desarrollador", "Analista de Casos de Pruebas"]
 
     def __init__(self, config_path=CONFIG_PATH):
         self.config_path = config_path
@@ -507,7 +507,7 @@ class NotaInstalacionManager:
         if "líder" in p or "lider" in p: return "Líder de Proyecto"
         if "arquitect" in p: return "Arquitecto"
         if "desarroll" in p: return "Desarrollador"
-        if "analista" in p: return "Analista de Código"
+        if "analista" in p: return "Analista de Casos de Pruebas"
         return "Otros"
     def _orden_categoria_key(self, p):
         c = self._clasificar_puesto(self._obtener_puesto(p))
@@ -520,9 +520,11 @@ class NotaInstalacionManager:
         return [{"puesto": self._obtener_puesto(p), "nombre": p.get("nombre", "N/A"), "telefono": p.get("telefono", "N/A"), "email": p.get("email", "N/A")} for p in sorted(personas, key=self._orden_categoria_key)]
 
     def obtener_escalamiento_de_equipo(self, n_equipo):
-        integrantes = self._data_cache.get("equipos", {}).get(n_equipo)
+        analista_cp = self._data_cache.get("analista_email", "")
+        integrantes = self._data_cache.get("equipos", {}).get(n_equipo) 
         if not integrantes: raise ValueError(f"No existe el equipo '{n_equipo}'.")
         personas = self._data_cache.get("personas", [])
+        integrantes.append({"email": analista_cp, "puesto": "Analista de Casos de Pruebas"})
         res = []
         for e in integrantes:
             email = e.get("email") if isinstance(e, dict) else e
@@ -589,6 +591,7 @@ class NotaInstalacionManager:
         
         if incluir_escalamiento: 
             partes.append(self.bloque_escalamiento(self.obtener_escalamiento_de_equipo(equipo_escalamiento) if equipo_escalamiento and equipo_escalamiento != "-- Todas las personas --" else self.obtener_escalamiento()))
+            
         # --- SE INYECTA EL BLOQUE DE RUTAS (Siempre visible) ---
         partes.append(self.bloque_rutas_repositorio(componentes, rollback_zip))
         return "\n\n".join(partes)
