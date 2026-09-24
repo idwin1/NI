@@ -7,6 +7,7 @@ import zipfile
 import re
 import requests
 import threading
+import tkinter as tk
 import customtkinter as ctk
 from tkinter import messagebox, filedialog, simpledialog
 
@@ -40,6 +41,110 @@ else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
+
+# =========================================================
+# Class ToolTip: para agregar mensajes emergentes a cualquier widget de Tkinter
+# =========================================================
+class ToolTip:
+    def __init__(self, widget, text, delay=600):
+        self.widget = widget
+        self.text = text
+        self.delay = delay  # Tiempo en milisegundos (600ms = 0.6 segundos)
+        self.tooltip_window = None
+        self.timer_id = None
+        
+        try:
+            self.widget.bind("<Enter>", self.al_entrar)
+            self.widget.bind("<Leave>", self.al_salir)
+            self.widget.bind("<ButtonPress>", self.al_salir)
+        except NotImplementedError:
+            # Si el widget (como CTkSegmentedButton) bloquea el .bind(),
+            # lo vinculamos directamente a su lienzo (_canvas) interno.
+            if hasattr(self.widget, "_canvas"):
+                self.widget._canvas.bind("<Enter>", self.al_entrar)
+                self.widget._canvas.bind("<Leave>", self.al_salir)
+                self.widget._canvas.bind("<ButtonPress>", self.al_salir)
+
+    def al_entrar(self, event=None):
+        self.cancelar_temporizador() # Asegura que no haya duplicados
+        # Programa la aparición de la ventana después de 'delay' milisegundos
+        self.timer_id = self.widget.after(self.delay, self.mostrar_tooltip)
+
+    def al_salir(self, event=None):
+        self.cancelar_temporizador()
+        self.ocultar_tooltip()
+
+    def cancelar_temporizador(self):
+        if self.timer_id:
+            self.widget.after_cancel(self.timer_id)
+            self.timer_id = None
+
+    def mostrar_tooltip(self):
+        if self.tooltip_window:
+            return
+            
+        self.tooltip_window = tk.Toplevel(self.widget)
+        self.tooltip_window.wm_overrideredirect(True)
+        
+        # 1. TRUCO DE TRANSPARENCIA MEJORADO
+        # Usamos un negro casi puro ("#000001") en lugar de magenta para 
+        # que el suavizado de bordes se funda con el tema oscuro sin dejar rastro.
+        color_invisible = "#000001"
+        self.tooltip_window.configure(bg=color_invisible)
+        self.tooltip_window.wm_attributes("-transparentcolor", color_invisible)
+
+        # NUEVO: Controla la transparencia general del ToolTip (ej. 0.9 = 90% sólido)
+        self.tooltip_window.wm_attributes("-alpha", 0.85)
+
+        # 2. CONTENEDOR CON BORDES REDONDEADOS
+        frame_tooltip = ctk.CTkFrame(self.tooltip_window, 
+                                     fg_color="#1e293b",       
+                                     corner_radius=10,         
+                                     border_width=1,           
+                                     border_color="#3b82f6")   
+        frame_tooltip.pack(padx=2, pady=2) 
+
+        # 3. TEXTO
+        label = ctk.CTkLabel(frame_tooltip, 
+                             text=self.text, 
+                             text_color="white",
+                             fg_color="transparent",
+                             font=("Segoe UI", 12),
+                             wraplength=250, 
+                             justify="left")
+        label.pack(padx=12, pady=8)
+
+        # 4. OBTENER TAMAÑO SOLICITADO
+        self.tooltip_window.update_idletasks() 
+        ancho_tooltip = frame_tooltip.winfo_reqwidth()
+        alto_tooltip = frame_tooltip.winfo_reqheight()
+        
+        ancho_pantalla = self.widget.winfo_screenwidth()
+        alto_pantalla = self.widget.winfo_screenheight()
+        
+        # 5. POSICIÓN (Centrado y ABAJO del componente)
+        x = int(self.widget.winfo_rootx() + (self.widget.winfo_width() / 2) - (ancho_tooltip / 2))
+        y = int(self.widget.winfo_rooty() + self.widget.winfo_height() + 10)
+        
+        # 6. CORRECCIÓN DE BORDES
+        # Evitar que se salga por los lados
+        if x < 0:
+            x = 10
+        elif (x + ancho_tooltip) > ancho_pantalla:
+            x = ancho_pantalla - ancho_tooltip - 10
+            
+        # Evitar que se salga por abajo (si topa abajo, lo pasa para arriba)
+        if (y + alto_tooltip) > alto_pantalla: 
+            y = int(self.widget.winfo_rooty() - alto_tooltip - 10)
+            
+        self.tooltip_window.wm_geometry(f"+{x}+{y}")
+    
+    def ocultar_tooltip(self):
+        if self.tooltip_window:
+            self.tooltip_window.destroy()
+            self.tooltip_window = None
+
+
 # ===========================================================
 # CLASE ÚNICA: TODA LA LÓGICA DE NEGOCIO (INTACTA)
 # ===========================================================
@@ -1015,6 +1120,7 @@ class NotaApp(ctk.CTk):
         self._crear_label_titulo(izq, "Conexión y Búsqueda")
 
         def crear_fila_proj(parent, label, get_func, tipo):
+            
             # Función auxiliar para asegurar que siempre devolvemos strings válidos (nunca None)
             def obtener_valores_limpios():
                 valores_crudos = get_func()
@@ -1057,7 +1163,12 @@ class NotaApp(ctk.CTk):
                 cb.set(nuevos[0])
 
             # Botones con funciones claras (sin lambdas anidados que causan bugs)
-            ctk.CTkButton(box, text="➕", width=35, height=35, fg_color=C_CARD, hover_color="#475569", command=agregar_nuevo).pack(side="left", padx=(8, 4))
+            boton_agregar = ctk.CTkButton(box, text="➕", width=35, height=35, fg_color=C_CARD, hover_color="#475569", command=agregar_nuevo)
+            if tipo == "azure":
+                ToolTip(boton_agregar, "Agregar nuevo proyecto a la lista de proyectos configurados.\n(Ej. Compras.RMI)")
+            elif tipo == "nota":
+                ToolTip(boton_agregar, "Agregar nuevo proyecto a la lista de proyectos de GCP.\n(Ej. cpl-corp...)")
+            boton_agregar.pack(side="left", padx=(8, 4))
             ctk.CTkButton(box, text="🗑", width=35, height=35, fg_color=C_DANGER, hover_color="#dc2626", command=eliminar_actual).pack(side="left")
             
             return cb
@@ -1095,7 +1206,9 @@ class NotaApp(ctk.CTk):
         self.text_variables = ctk.CTkTextbox(izq, height=75, font=FUENTE_TEXTO, fg_color=C_CARD)
         self.text_variables.pack(fill="x", padx=15, pady=(4, 15))
         
-        ctk.CTkButton(izq, text="➕ Agregar Bloque a la Nota", font=FUENTE_SUBTITULO, height=45, fg_color=C_SUCCESS, hover_color="#059669", command=self._agregar_bloque_azure).pack(fill="x", padx=15, pady=(10, 20))
+        boton_agregar_nota = ctk.CTkButton(izq, text="➕ Agregar Bloque a la Nota", font=FUENTE_SUBTITULO, height=45, fg_color=C_SUCCESS, hover_color="#059669", command=self._agregar_bloque_azure)
+        ToolTip(boton_agregar_nota, "Agrega el bloque a la nota final. Puedes agregar varios bloques antes de generar la nota completa. (Componentes o Rollback)")
+        boton_agregar_nota.pack(fill="x", padx=15, pady=(10, 20))
 
         # Derecha Azure
         der = ctk.CTkScrollableFrame(tab, fg_color=C_BG, corner_radius=12)
