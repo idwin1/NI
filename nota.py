@@ -521,18 +521,21 @@ class NotaInstalacionManager:
 
     def obtener_escalamiento_de_equipo(self, n_equipo):
         analista_cp = self._data_cache.get("analista_email", "")
-        integrantes = self._data_cache.get("equipos", {}).get(n_equipo) 
+        integrantes = self._data_cache.get("equipos", {}).get(n_equipo)
         if not integrantes: raise ValueError(f"No existe el equipo '{n_equipo}'.")
         personas = self._data_cache.get("personas", [])
-        integrantes.append({"email": analista_cp, "puesto": "Analista de Casos de Pruebas"})
+        integrantes = list(integrantes)
+        if analista_cp:
+            integrantes.append({"email": analista_cp, "puesto": "Analista de Casos de Pruebas"})
         res = []
         for e in integrantes:
             email = e.get("email") if isinstance(e, dict) else e
-            ov = e.get("puesto") if isinstance(e, dict) else None
+            puesto_equipo = e.get("puesto") if isinstance(e, dict) else None
             cands = [p for p in personas if p.get("email") == email]
             if cands:
-                eleg = dict(cands[0])
-                if ov: eleg["puesto"] = ov
+                eleg = dict(next((p for p in cands if "arquitect" in self._obtener_puesto(p).lower()), cands[0]))
+                if puesto_equipo:
+                    eleg["puesto"] = puesto_equipo
                 res.append(eleg)
         return [{"puesto": self._obtener_puesto(p), "nombre": p.get("nombre", "N/A"), "telefono": p.get("telefono", "N/A"), "email": p.get("email", "N/A")} for p in sorted(res, key=self._orden_categoria_key)]
 
@@ -597,13 +600,16 @@ class NotaInstalacionManager:
         return "\n\n".join(partes)
 
     def bloque_azure_componente(self, info, variables=None, tag_version="", commit_properties="", url_properties="", commit_environment="", url_environment=""):
-        lineas = ["-" * 55, "", f"Organización: {info.get('organizacion', 'Coppel')}", f"Proyecto: {info['proyecto']}", f"Componente: {info['componente']}", f"RAMA: {info['rama']}", f"Versión Build: {info['version_build']}", f"Nombre del Release: {info['nombre_release']}", f"Release: {info['release']}", f"URL Release: {info['url_release']}", f"Commit Release: {info['commit_release']}", f"URL Repositorio: {info['url_repositorio']}"]
+        lineas = ["-" * 55, "", f"Organización: {info.get('organizacion', 'Coppel')}", f"Proyecto: {info['proyecto']}", f"Componente: {info['componente']}"]
+        if not info.get("es_rollback"):
+            lineas.append(f"RAMA: {info['rama']}")
+        lineas.extend([f"Versión Build: {info['version_build']}", f"Nombre del Release: {info['nombre_release']}", f"Release: {info['release']}", f"URL Release: {info['url_release']}", f"Commit Release: {info['commit_release']}", f"URL Repositorio: {info['url_repositorio']}"])
         if commit_properties: lineas.append(f"Commit properties: {commit_properties}")
         if url_properties: lineas.append(f"URL properties: {url_properties}")
         if commit_environment: lineas.append(f"Commit environment.ts: {commit_environment}")
         if url_environment: lineas.append(f"Url environment.ts: {url_environment}")
         if tag_version: lineas.append(f"Tag version: {tag_version}")
-        if info.get("pr_a_master"): lineas.append(f"PR a Master: {info['pr_a_master']}")
+        if info.get("pr_a_master") and not info.get("es_rollback"): lineas.append(f"PR a Master: {info['pr_a_master']}")
         if variables:
             lineas.append("Variables:")
             for k, v in variables.items(): lineas.append(f"{k} : {v}")
@@ -615,10 +621,33 @@ class NotaInstalacionManager:
         return "\n".join(partes)
 
     def armar_nota_azure(self, bloques_componentes, excepto="N/A", rollback_bloques=None, backup_texto="", equipo_escalamiento=None):
-        partes = ["\n\n".join(bloques_componentes), f"Excepto a:\n{excepto}"]
-        if rollback_bloques: partes.append("Rollback:\n" + "\n\n".join(rollback_bloques))
-        if backup_texto: partes.append(backup_texto)
-        partes.append(self.bloque_escalamiento(self.obtener_escalamiento_de_equipo(equipo_escalamiento) if equipo_escalamiento and equipo_escalamiento != "-- Todas las personas --" else self.obtener_escalamiento()))
+        detalle_nota = "\n\n".join(bloques_componentes)
+        bloques_rollback = "\n\n".join(rollback_bloques or [])
+        escalamiento = self.bloque_escalamiento(self.obtener_escalamiento_de_equipo(equipo_escalamiento) if equipo_escalamiento and equipo_escalamiento != "-- Todas las personas --" else self.obtener_escalamiento())
+        rutas = ["Ruta repositorio de código:"]
+        for bloque in bloques_componentes + (rollback_bloques or []):
+            rutas.extend(linea for linea in bloque.splitlines() if linea.startswith("URL Repositorio:"))
+
+        partes = [
+            "DETALLE DE SOLICITUD",
+            "Afectación a:\n",
+            "Folio RFC:\n",
+            "Empresa:\n",
+            "Descripción:\n",
+            "1.- ¿De qué se trata el cambio?\n",
+            "2.- ¿Es corrección de una incidencia? (Si / No)\n",
+            "3.- ¿Es automatizado (Si / No)?\n",
+            "4.- ¿Qué ventaja tendremos de implementar este cambio hoy?\n",
+            "5.- ¿Qué sucede si nos esperamos a implementar el cambio?\n",
+            "6.- ¿Cómo se puede validar el cambio desde los sistemas una vez implementado?\n",
+            f"Detalle de la nota:\n{detalle_nota}",
+            "Fecha de implementación:\n",
+            f"Excepto a:\n{excepto}",
+            f"Rollback:\n{bloques_rollback}",
+            backup_texto,
+            escalamiento or "Datos de escalamiento:",
+            "\n".join(rutas)
+        ]
         return "\n\n".join(partes)
 
 # ===========================================================
@@ -1360,7 +1389,7 @@ class NotaApp(ctk.CTk):
         c_f, r_f, com_f, pr_f = self.entry_componente_azure.get().strip(), self.entry_rama_azure.get().strip(), self.entry_commit_azure.get().strip(), self.entry_pr_number_azure.get().strip()
         p_az, p_no = self._info_azure_actual["proyecto"], self.combo_proj_nota.get().strip()
         inf = dict(self._info_azure_actual)
-        inf.update({"proyecto": p_no or p_az, "componente": c_f, "rama": r_f, "commit_release": com_f, "url_repositorio": f"https://dev.azure.com/{self.manager.organization}/{p_az}/_git/{c_f}" if c_f else "", "pr_a_master": f"https://dev.azure.com/{self.manager.organization}/{p_az}/_git/{c_f}/pullrequest/{pr_f}" if c_f and pr_f else ""})
+        inf.update({"proyecto": p_no or p_az, "componente": c_f, "rama": r_f, "commit_release": com_f, "url_repositorio": f"https://dev.azure.com/{self.manager.organization}/{p_az}/_git/{c_f}" if c_f else "", "pr_a_master": f"https://dev.azure.com/{self.manager.organization}/{p_az}/_git/{c_f}/pullrequest/{pr_f}" if c_f and pr_f else "", "es_rollback": self._modo_captura_azure == "rollback"})
         
         bloque = self.manager.bloque_azure_componente(inf, variables=v_dict, tag_version=self.entry_tag.get().strip(), commit_properties=self.entry_commit_prop.get().strip(), url_properties=self.entry_url_prop.get().strip(), commit_environment=self.entry_commit_env.get().strip(), url_environment=self.entry_url_env.get().strip())
         
