@@ -679,8 +679,8 @@ class PipelineReleaseSearchDialog(ctk.CTkToplevel):
         top2 = ctk.CTkFrame(self.frame_paso2, fg_color="transparent")
         top2.pack(fill="x", padx=15, pady=(15, 5))
         ctk.CTkButton(top2, text="⬅ Volver", font=FUENTE_TEXTO, width=100, fg_color=C_CARD, command=self._volver_a_paso1).pack(side="left")
-        self.lbl_pipeline_actual = ctk.CTkLabel(top2, text="", font=FUENTE_SUBTITULO, text_color=C_PRIMARY)
-        self.lbl_pipeline_actual.pack(side="left", padx=15)
+        self.lbl_pipeline_actual = ctk.CTkLabel(top2, text="", font=FUENTE_SUBTITULO, text_color=C_PRIMARY, wraplength=390, justify="left", anchor="w")
+        self.lbl_pipeline_actual.pack(side="left", fill="x", expand=True, padx=15)
 
         self.resultados_releases = ctk.CTkScrollableFrame(self.frame_paso2, fg_color=C_PANEL, corner_radius=10)
         self.resultados_releases.pack(fill="both", expand=True, padx=15, pady=(0, 15))
@@ -694,7 +694,7 @@ class PipelineReleaseSearchDialog(ctk.CTkToplevel):
             for d in definiciones:
                 fila = ctk.CTkFrame(self.resultados_pipelines, fg_color=C_CARD, corner_radius=8)
                 fila.pack(fill="x", padx=5, pady=4)
-                ctk.CTkLabel(fila, text=d.get('name'), font=FUENTE_TEXTO).pack(side="left", padx=10, pady=10)
+                ctk.CTkLabel(fila, text=d.get('name'), font=FUENTE_TEXTO, wraplength=360, justify="left", anchor="w").pack(side="left", fill="x", expand=True, padx=10, pady=10)
                 ctk.CTkButton(fila, text="Ver releases", font=FUENTE_TEXTO, fg_color=C_PRIMARY, command=lambda dd=d: self._mostrar_releases(dd)).pack(side="right", padx=10, pady=10)
         except Exception as e: ctk.CTkLabel(self.resultados_pipelines, text=f"Error: {e}", text_color=C_DANGER).pack()
 
@@ -715,7 +715,7 @@ class PipelineReleaseSearchDialog(ctk.CTkToplevel):
             for rel in releases:
                 fila = ctk.CTkFrame(self.resultados_releases, fg_color=C_CARD, corner_radius=8)
                 fila.pack(fill="x", padx=5, pady=4)
-                ctk.CTkLabel(fila, text=f"{rel.get('name')} - Creado: {rel.get('createdOn', '')[:10]}", font=FUENTE_TEXTO).pack(side="left", padx=10, pady=10)
+                ctk.CTkLabel(fila, text=f"{rel.get('name')} - Creado: {rel.get('createdOn', '')[:10]}", font=FUENTE_TEXTO, wraplength=360, justify="left", anchor="w").pack(side="left", fill="x", expand=True, padx=10, pady=10)
                 ctk.CTkButton(fila, text="Seleccionar", font=FUENTE_TEXTO, fg_color=C_SUCCESS, command=lambda r=rel: self._seleccionar(r)).pack(side="right", padx=10, pady=10)
         except Exception as e: ctk.CTkLabel(self.resultados_releases, text=f"Error: {e}", text_color=C_DANGER).pack()
 
