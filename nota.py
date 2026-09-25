@@ -640,8 +640,9 @@ class NotaInstalacionManager:
             "4.- ¿Qué ventaja tendremos de implementar este cambio hoy?\n",
             "5.- ¿Qué sucede si nos esperamos a implementar el cambio?\n",
             "6.- ¿Cómo se puede validar el cambio desde los sistemas una vez implementado?\n",
-            f"Detalle de la nota:\n{detalle_nota}",
+            "Detalle de la nota:",
             "Fecha de implementación:\n",
+            detalle_nota,
             f"Excepto a:\n{excepto}",
             f"Rollback:\n{bloques_rollback}",
             backup_texto,
@@ -1290,7 +1291,7 @@ class NotaApp(ctk.CTk):
             def tarea_fondo():
                 try:
                     release_completo = self.manager.obtener_release(pro, r['id'])
-                    self.after(0, lambda: self._cargar_info_desde_release(release_completo, pro))
+                    self._procesar_release_en_hilo(release_completo, pro)
                 except Exception as e:
                     self.after(0, lambda e=e: messagebox.showerror("Error", f"No se pudo descargar el release completo: {e}"))
             
@@ -1298,9 +1299,15 @@ class NotaApp(ctk.CTk):
 
         PipelineReleaseSearchDialog(self, self.manager, org, pro, al_seleccionar)
 
-    def _cargar_info_desde_release(self, release, proyecto):
+    def _procesar_release_en_hilo(self, release, proyecto):
         try:
             info = self.manager._armar_info_desde_release(release, proyecto)
+            self.after(0, lambda: self._cargar_info_desde_release(info))
+        except Exception as e:
+            self.after(0, lambda e=e: messagebox.showerror("Error", str(e)))
+
+    def _cargar_info_desde_release(self, info):
+        try:
             self._info_azure_actual = info
             for a, k in [("entry_componente_azure", "componente"), ("entry_rama_azure", "rama"), ("entry_commit_azure", "commit_release"), ("entry_pr_number_azure", "pr_number")]:
                 self._limpiar_entry(getattr(self, a))
@@ -1337,8 +1344,8 @@ class NotaApp(ctk.CTk):
                 # Esto es lo que congela la app, ahora lo hace el hilo secundario
                 release = self.manager.obtener_release(pro, rid)
                 
-                # 3. Al terminar, manda actualizar la UI al hilo principal
-                self.after(0, lambda: self._cargar_info_desde_release(release, pro))
+                # Procesar la información también fuera del hilo principal
+                self._procesar_release_en_hilo(release, pro)
             except Exception as e:
                 self.after(0, lambda e=e: messagebox.showerror("Error", str(e)))
                 self.after(0, lambda: self.lbl_info_azure.configure(text="Error de conexión.", text_color=C_DANGER))
