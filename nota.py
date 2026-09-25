@@ -551,7 +551,6 @@ class NotaInstalacionManager:
             else:
                 partes.append(f"{i}.- Instalar el siguiente componente:")
             partes.extend([f"Componente: {c['nombre']}", f"MD5: {c['md5']}", f"Drive: {drive}"])
-            if drive: partes.append(f"Drive: {drive}")
             partes.append("")
         return "\n".join(partes).rstrip()
 
@@ -572,15 +571,15 @@ class NotaInstalacionManager:
         # Agrega las rutas de todos los componentes principales (estén vacías o no)
         for c in componentes:
             lineas.append(c["nombre"])
-            lineas.append(f"Ruta de drive: {c.get('drive', '')}")
+            lineas.append(f"Ruta de Drive: {c.get('drive', '')}")
             lineas.append(f"Ruta de Azure: {c.get('azure', '')}")
             lineas.append("") # Salto de línea visual
             
         # Agrega las rutas del ZIP de rollback principal si existe
         if rollback_zip:
             lineas.append(rollback_zip["nombre"])
-            lineas.append(f"Ruta de drive: {rollback_zip.get('drive', '')}")
-            lineas.append(f"Ruta azure: {rollback_zip.get('azure', '')}")
+            lineas.append(f"Ruta de Drive: {rollback_zip.get('drive', '')}")
+            lineas.append(f"Ruta de Azure: {rollback_zip.get('azure', '')}")
             lineas.append("")
             
         return "\n".join(lineas).rstrip()
@@ -626,7 +625,12 @@ class NotaInstalacionManager:
         escalamiento = self.bloque_escalamiento(self.obtener_escalamiento_de_equipo(equipo_escalamiento) if equipo_escalamiento and equipo_escalamiento != "-- Todas las personas --" else self.obtener_escalamiento())
         rutas = ["Ruta repositorio de código:"]
         for bloque in bloques_componentes + (rollback_bloques or []):
-            rutas.extend(linea for linea in bloque.splitlines() if linea.startswith("URL Repositorio:"))
+            componente = next((linea.split(":", 1)[1].strip() for linea in bloque.splitlines() if linea.startswith("Componente:")), "")
+            url_repositorio = next((linea.split(":", 1)[1].strip() for linea in bloque.splitlines() if linea.startswith("URL Repositorio:")), "")
+            if componente:
+                rutas.append(componente)
+            if url_repositorio:
+                rutas.append(f"Azure: {url_repositorio}")
 
         partes = [
             "DETALLE DE SOLICITUD",
@@ -692,6 +696,9 @@ class PipelineReleaseSearchDialog(ctk.CTkToplevel):
         if not texto: return
         try:
             definiciones = self.manager.listar_definiciones_release(self.project, search_text=texto)
+            if not definiciones:
+                ctk.CTkLabel(self.resultados_pipelines, text=f"No se encontró ningún componente o no existe: {texto}", text_color=C_MUTED, font=FUENTE_TEXTO, wraplength=450).pack(anchor="w", padx=10, pady=15)
+                return
             for d in definiciones:
                 fila = ctk.CTkFrame(self.resultados_pipelines, fg_color=C_CARD, corner_radius=8)
                 fila.pack(fill="x", padx=5, pady=4)
@@ -713,6 +720,9 @@ class PipelineReleaseSearchDialog(ctk.CTkToplevel):
         for w in self.resultados_releases.winfo_children(): w.destroy()
         try:
             releases = self.manager.listar_releases(self.project, definition_id=definition_id, top=30)
+            if not releases:
+                ctk.CTkLabel(self.resultados_releases, text="El componente no tiene releases disponibles.", text_color=C_MUTED, font=FUENTE_TEXTO).pack(anchor="w", padx=10, pady=15)
+                return
             for rel in releases:
                 fila = ctk.CTkFrame(self.resultados_releases, fg_color=C_CARD, corner_radius=8)
                 fila.pack(fill="x", padx=5, pady=4)
@@ -894,17 +904,13 @@ class NotaApp(ctk.CTk):
                 # --- ADAPTAR PESTAÑA MANUAL ---
                 tab_m = self.tabview.tab("Manual (Archivos)")
                 if es_angosto:
-                    # Apilar verticalmente (Arriba a abajo)
                     self.izq_m.grid(row=0, column=0, columnspan=2, sticky="nsew", padx=10, pady=5)
                     self.der_m.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=10, pady=5)
-                    self.bottom_m.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(10, 0))
                     tab_m.grid_rowconfigure(0, weight=1)
                     tab_m.grid_rowconfigure(1, weight=1)
                 else:
-                    # Lado a lado (Izquierda y Derecha)
-                    self.izq_m.grid(row=0, column=0, columnspan=1, sticky="nsew", padx=(0, 10), pady=10)
-                    self.der_m.grid(row=0, column=1, columnspan=1, sticky="nsew", padx=(10, 0), pady=10)
-                    self.bottom_m.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+                    self.izq_m.grid(row=0, column=0, sticky="nsew", padx=(0, 10), pady=10)
+                    self.der_m.grid(row=0, column=1, sticky="nsew", padx=(10, 0), pady=10)
                     tab_m.grid_rowconfigure(0, weight=1)
                     tab_m.grid_rowconfigure(1, weight=0)
 
@@ -922,6 +928,13 @@ class NotaApp(ctk.CTk):
                     self.der_a.grid(row=0, column=1, columnspan=1, sticky="nsew", padx=(10, 0), pady=10)
                     tab_a.grid_rowconfigure(0, weight=1)
                     tab_a.grid_rowconfigure(1, weight=0)
+                self.after_idle(self._actualizar_scroll_azure)
+
+    def _actualizar_scroll_azure(self):
+        for frame in (getattr(self, "izq_a", None), getattr(self, "der_a", None)):
+            canvas = getattr(frame, "_parent_canvas", None)
+            if canvas:
+                canvas.configure(scrollregion=canvas.bbox("all"))
 
     def _crear_label_titulo(self, parent, text):
         lbl = ctk.CTkLabel(parent, text=text, font=FUENTE_TITULO, text_color=C_PRIMARY)
@@ -936,16 +949,16 @@ class NotaApp(ctk.CTk):
         tab.grid_columnconfigure(0, weight=1)
         tab.grid_columnconfigure(1, weight=1)
 
-        izq = ctk.CTkFrame(tab, fg_color=C_BG, corner_radius=12)
+        izq = ctk.CTkScrollableFrame(tab, fg_color=C_BG, corner_radius=12)
         izq.grid(row=0, column=0, sticky="nsew", padx=(0, 10), pady=10)
         self._crear_label_titulo(izq, "Instalación Principal")
         
         btn_add = ctk.CTkButton(izq, text="➕ Agregar Archivos", font=FUENTE_TEXTO, height=40, fg_color=C_PRIMARY, command=self._agregar_componente_manual)
         btn_add.pack(fill="x", padx=15, pady=5)
-        self.lista_componentes_frame = ctk.CTkScrollableFrame(izq, fg_color="transparent")
-        self.lista_componentes_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        self.lista_componentes_frame = ctk.CTkFrame(izq, fg_color="transparent")
+        self.lista_componentes_frame.pack(fill="x", padx=5, pady=5)
 
-        der = ctk.CTkFrame(tab, fg_color=C_BG, corner_radius=12)
+        der = ctk.CTkScrollableFrame(tab, fg_color=C_BG, corner_radius=12)
         der.grid(row=0, column=1, sticky="nsew", padx=(10, 0), pady=10)
         self._crear_label_titulo(der, "Rollback (ZIP / Archivos)")
         
@@ -973,21 +986,21 @@ class NotaApp(ctk.CTk):
         # y self.rutas_zip_frame.pack_forget() en _quitar_rollback_manual cuando lo actives.
         """
 
-        self.lista_rollback_frame = ctk.CTkScrollableFrame(der, fg_color="transparent")
-        self.lista_rollback_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        self.lista_rollback_frame = ctk.CTkFrame(der, fg_color="transparent")
+        self.lista_rollback_frame.pack(fill="x", padx=5, pady=5)
 
-        bottom = ctk.CTkFrame(tab, fg_color=C_BG, corner_radius=12)
-        bottom.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(10, 0))
-        bottom.grid_columnconfigure((0, 1, 2), weight=1)
+        bottom = ctk.CTkFrame(der, fg_color="transparent")
+        bottom.pack(fill="x", padx=5, pady=5)
+        bottom.grid_columnconfigure(0, weight=1)
 
         f_izq = ctk.CTkFrame(bottom, fg_color="transparent")
-        f_izq.grid(row=0, column=0, sticky="nsew", padx=15, pady=15)
+        f_izq.grid(row=0, column=0, sticky="ew", padx=15, pady=(15, 5))
         ctk.CTkLabel(f_izq, text="Excepto a:", font=FUENTE_TEXTO).pack(anchor="w", padx=5)
         self.entry_excepto_manual = ctk.CTkEntry(f_izq, placeholder_text="N/A", font=FUENTE_TEXTO, height=35)
         self.entry_excepto_manual.pack(fill="x", padx=5, pady=(2, 5))
 
         f_cen = ctk.CTkFrame(bottom, fg_color="transparent")
-        f_cen.grid(row=0, column=1, sticky="nsew", padx=15, pady=15)
+        f_cen.grid(row=1, column=0, sticky="ew", padx=15, pady=5)
         ctk.CTkLabel(f_cen, text="Equipo de escalamiento:", font=FUENTE_TEXTO).pack(anchor="w", padx=5)
         self.combo_equipo_manual = ctk.CTkComboBox(f_cen, values=["-- Todas las personas --"] + self.manager.listar_nombres_equipos(), font=FUENTE_TEXTO, height=35,state="readonly")
         self.combo_equipo_manual.pack(fill="x", padx=5, pady=(2, 5))
@@ -995,52 +1008,59 @@ class NotaApp(ctk.CTk):
         ctk.CTkCheckBox(f_cen, text="Incluir escalamiento", variable=self.check_incluir_escalamiento_manual, font=FUENTE_TEXTO, fg_color=C_PRIMARY).pack(anchor="w", padx=5, pady=5)
 
         f_der = ctk.CTkFrame(bottom, fg_color="transparent")
-        f_der.grid(row=0, column=2, sticky="nsew", padx=15, pady=15)
-        ctk.CTkButton(f_der, text="🧾 Generar Nota Manual", font=FUENTE_SUBTITULO, fg_color=C_SUCCESS, hover_color="#059669", height=50, command=self._generar_nota_manual).pack(side="right", fill="x", expand=True, padx=10)
-        # Guardar referencias para el diseño responsivo
+        f_der.grid(row=2, column=0, sticky="ew", padx=15, pady=(5, 15))
+        ctk.CTkButton(f_der, text="🧾 Generar Nota Manual", font=FUENTE_SUBTITULO, fg_color=C_SUCCESS, hover_color="#059669", height=50, command=self._generar_nota_manual).pack(fill="x", padx=10)
         self.izq_m = izq
         self.der_m = der
-        self.bottom_m = bottom
 
     def _crear_tarjeta(self, parent, comp, idx, lista, refresh_cb):
-        card = ctk.CTkFrame(parent, fg_color=C_CARD, corner_radius=8, border_width=1, border_color="#475569")
+        card = tk.Frame(parent, bg=C_CARD, bd=1, relief="solid", highlightbackground="#475569", highlightcolor="#475569")
         card.pack(fill="x", padx=5, pady=6, ipadx=5, ipady=8)
         
-        top = ctk.CTkFrame(card, fg_color="transparent")
+        top = tk.Frame(card, bg=C_CARD)
         top.pack(fill="x", padx=10, pady=(0, 5))
         
-        lbl_drag = ctk.CTkLabel(top, text="☰", font=("Segoe UI", 16, "bold"), text_color=C_MUTED, cursor="hand2")
+        lbl_drag = tk.Label(top, text="☰", font=("Segoe UI", 16, "bold"), fg=C_MUTED, bg=C_CARD, cursor="hand2")
         lbl_drag.pack(side="left", padx=(0, 12))
         lbl_drag.bind("<ButtonPress-1>", lambda e: self._on_drag_start(e, idx, lista, refresh_cb, card))
-        lbl_drag.bind("<ButtonRelease-1>", lambda e: self._on_drag_release(e, parent))
 
-        ctk.CTkLabel(top, text=f"{idx+1}. {comp['nombre']}", font=FUENTE_SUBTITULO, text_color=C_TEXT).pack(side="left")
-        ctk.CTkButton(top, text="🗑", width=30, fg_color="transparent", text_color=C_DANGER, hover_color="#475569", command=lambda: (lista.pop(idx), refresh_cb())).pack(side="right")
+        tk.Label(top, text=f"{idx+1}. {comp['nombre']}", font=FUENTE_SUBTITULO, fg=C_TEXT, bg=C_CARD, anchor="w").pack(side="left")
+        tk.Button(top, text="🗑", width=3, fg=C_DANGER, bg=C_CARD, activebackground="#475569", relief="flat", command=lambda: (lista.pop(idx), refresh_cb())).pack(side="right")
 
-        ctk.CTkLabel(card, text=f"MD5: {comp['md5']}", font=FUENTE_CHICA, text_color=C_MUTED).pack(anchor="w", padx=42, pady=(0, 8))
+        tk.Label(card, text=f"MD5: {comp['md5']}", font=FUENTE_CHICA, fg=C_MUTED, bg=C_CARD, anchor="w").pack(anchor="w", padx=42, pady=(0, 8))
 
-        campos = ctk.CTkFrame(card, fg_color="transparent")
+        campos = tk.Frame(card, bg=C_CARD)
         campos.pack(fill="x", padx=40)
-        campos.grid_columnconfigure((0, 1, 2), weight=1)
+        for column in range(3):
+            campos.grid_columnconfigure(column, weight=1)
         
         # 1. Caja para IP
-        ent_ip = ctk.CTkEntry(campos, placeholder_text="IP (Opcional)", font=FUENTE_CHICA, height=30)
-        ent_ip.grid(row=0, column=0, sticky="ew", padx=3)
+        tk.Label(campos, text="IP (Opcional)", font=FUENTE_CHICA, fg=C_MUTED, bg=C_CARD, anchor="w").grid(row=0, column=0, sticky="w", padx=3)
+        ent_ip = tk.Entry(campos, font=FUENTE_CHICA, bg=C_PANEL, fg=C_TEXT, insertbackground=C_TEXT, relief="flat")
+        ent_ip.grid(row=1, column=0, sticky="ew", padx=3)
+        ent_ip.insert(0, comp.get("ip") or "")
         if comp.get("ip"): 
+            ent_ip.delete(0, "end")
             ent_ip.insert(0, comp["ip"])
         ent_ip.bind("<KeyRelease>", lambda e: comp.update({"ip": ent_ip.get()}))
 
         # 2. Caja para BD
-        ent_bd = ctk.CTkEntry(campos, placeholder_text="BD (Opcional)", font=FUENTE_CHICA, height=30)
-        ent_bd.grid(row=0, column=1, sticky="ew", padx=3)
+        tk.Label(campos, text="BD (Opcional)", font=FUENTE_CHICA, fg=C_MUTED, bg=C_CARD, anchor="w").grid(row=0, column=1, sticky="w", padx=3)
+        ent_bd = tk.Entry(campos, font=FUENTE_CHICA, bg=C_PANEL, fg=C_TEXT, insertbackground=C_TEXT, relief="flat")
+        ent_bd.grid(row=1, column=1, sticky="ew", padx=3)
+        ent_bd.insert(0, comp.get("bd") or "")
         if comp.get("bd"): 
+            ent_bd.delete(0, "end")
             ent_bd.insert(0, comp["bd"])
         ent_bd.bind("<KeyRelease>", lambda e: comp.update({"bd": ent_bd.get()}))
 
         # 3. Caja para Drive
-        ent_drv = ctk.CTkEntry(campos, placeholder_text="Drive (Opcional)", font=FUENTE_CHICA, height=30)
-        ent_drv.grid(row=0, column=2, sticky="ew", padx=3)
+        tk.Label(campos, text="Drive (Opcional)", font=FUENTE_CHICA, fg=C_MUTED, bg=C_CARD, anchor="w").grid(row=0, column=2, sticky="w", padx=3)
+        ent_drv = tk.Entry(campos, font=FUENTE_CHICA, bg=C_PANEL, fg=C_TEXT, insertbackground=C_TEXT, relief="flat")
+        ent_drv.grid(row=1, column=2, sticky="ew", padx=3)
+        ent_drv.insert(0, comp.get("drive") or "")
         if comp.get("drive"): 
+            ent_drv.delete(0, "end")
             ent_drv.insert(0, comp["drive"])
         ent_drv.bind("<KeyRelease>", lambda e: comp.update({"drive": ent_drv.get()}))
 
@@ -1072,21 +1092,66 @@ class NotaApp(ctk.CTk):
         """
 
     def _on_drag_start(self, event, idx, lista, cb, card_widget):
+        if getattr(self, "_drag_ghost", None):
+            self._drag_ghost.destroy()
+            self._drag_ghost = None
         self._drag_idx, self._drag_lista, self._drag_refresh_callback = idx, lista, cb
-        card_widget.configure(border_width=2, border_color=C_PRIMARY) # Feedback visual
+        self._drag_parent_frame = card_widget.master
+        self._drag_scroll_frame = self._drag_parent_frame.master
+        card_widget.configure(highlightthickness=2, highlightbackground=C_PRIMARY, highlightcolor=C_PRIMARY)
+        ghost = tk.Toplevel(self)
+        ghost.overrideredirect(True)
+        ghost.attributes("-alpha", 0.78)
+        tk.Label(ghost, text=f"Moviendo: {lista[idx]['nombre']}", font=FUENTE_TEXTO, fg=C_TEXT, bg=C_PRIMARY, padx=12, pady=8).pack()
+        self._drag_ghost = ghost
+        self._drag_motion_bind_id = self.bind_all("<Motion>", self._actualizar_drag_ghost, add="+")
+        self._drag_release_bind_id = self.bind_all("<ButtonRelease-1>", lambda release_event: self._on_drag_release(release_event, self._drag_parent_frame), add="+")
+        self._actualizar_drag_ghost(event)
+
+    def _actualizar_drag_ghost(self, event):
+        if getattr(self, "_drag_ghost", None):
+            self._drag_ghost.geometry(f"+{event.x_root + 14}+{event.y_root + 14}")
+            self._auto_scroll_during_drag(event)
+
+    def _auto_scroll_during_drag(self, event):
+        scroll_frame = getattr(self, "_drag_scroll_frame", None)
+        canvas = getattr(scroll_frame, "_parent_canvas", None)
+        if not canvas:
+            return
+        top = canvas.winfo_rooty()
+        bottom = top + canvas.winfo_height()
+        margin = 45
+        direction = -1 if event.y_root < top + margin else 1 if event.y_root > bottom - margin else 0
+        if direction and self._drag_idx >= 0:
+            canvas.yview_scroll(direction * 5, "units")
 
     def _on_drag_release(self, event, parent_frame):
         if self._drag_idx < 0 or not self._drag_lista: return
         
-        # Calcular posición exacta dentro del contenedor principal
-        y_rel = parent_frame.winfo_pointery() - parent_frame.winfo_rooty()
-        altura_tarjeta = 110 # Altura aprox de cada tarjeta con padding
-        nuevo_idx = max(0, min(len(self._drag_lista) - 1, int(y_rel / altura_tarjeta)))
+        nuevo_idx = len(self._drag_lista) - 1
+        for index, widget in enumerate(parent_frame.winfo_children()):
+            centro_tarjeta = widget.winfo_rooty() + (widget.winfo_height() / 2)
+            if event.y_root < centro_tarjeta:
+                nuevo_idx = index
+                break
         
         if nuevo_idx != self._drag_idx:
             item = self._drag_lista.pop(self._drag_idx)
             self._drag_lista.insert(nuevo_idx, item)
             
+        for widget in parent_frame.winfo_children():
+            widget.configure(highlightthickness=1, highlightbackground="#475569", highlightcolor="#475569")
+        if getattr(self, "_drag_motion_bind_id", None):
+            self.unbind_all("<Motion>")
+            self._drag_motion_bind_id = None
+        if getattr(self, "_drag_release_bind_id", None):
+            self.unbind_all("<ButtonRelease-1>")
+            self._drag_release_bind_id = None
+        if getattr(self, "_drag_ghost", None):
+            self._drag_ghost.destroy()
+            self._drag_ghost = None
+        self._drag_parent_frame = None
+        self._drag_scroll_frame = None
         self._drag_idx, self._drag_lista = -1, None
         self._drag_refresh_callback()
 
@@ -1275,6 +1340,7 @@ class NotaApp(ctk.CTk):
         # Guardar referencias para el diseño responsivo
         self.izq_a = izq
         self.der_a = der
+        self.after_idle(self._actualizar_scroll_azure)
 
     
     def _abrir_buscador_por_componente(self):
