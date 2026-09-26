@@ -14,6 +14,10 @@ from tkinter import messagebox, filedialog, simpledialog
 # ===========================================================
 # CONFIGURACIÓN VISUAL Y TIPOGRAFÍA (DISEÑO MODERNO)
 # ===========================================================
+ctk.deactivate_automatic_dpi_awareness() # Desactiva el escalado del OS
+ctk.set_window_scaling(1.0)              # Fuerza la escala de la ventana al 100%
+ctk.set_widget_scaling(1.0)              # Fuerza la escala de los widgets al 100%
+
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
