@@ -8,6 +8,7 @@ import re
 import requests
 import threading
 import datetime
+import unicodedata
 import tkinter as tk
 import customtkinter as ctk
 from tkinter import messagebox, filedialog, simpledialog
@@ -836,6 +837,16 @@ class DialogoPopUp(ctk.CTkToplevel):
         )
         btn_form.pack(pady=5, padx=20, fill="x")
 
+        # Botón 2: Formulario
+        btn_form = ctk.CTkButton(
+            self, 
+            text=" Pegar Texto", 
+            command=self.guardar_info_pegada,
+            fg_color="#2b7b80",
+            hover_color="#1f5c60"
+        )
+        btn_form.pack(pady=5, padx=20, fill="x")
+
     def accion_subir_archivo(self):
         ruta_archivo = filedialog.askopenfilename(
             title="Seleccionar nota guardada",
@@ -858,7 +869,53 @@ class DialogoPopUp(ctk.CTkToplevel):
     def accion_formulario(self):
         self.destroy() # Primero cerramos esta ventanita pequeñita
         DialogoFormularioCarga(self.master) # Abrimos el formulario grande apuntando a NotaApp
-    
+
+    def guardar_info_pegada(self):
+        self.destroy()
+        DialogoEntradaTexto_Datos(self.master)
+
+# ===========================================================
+# DIÁLOGO PARA EL Entrada de Texto
+# ===========================================================
+
+class DialogoEntradaTexto_Datos(ctk.CTkToplevel):
+    def __init__(self, master):
+        super().__init__(master)
+        self.title("Formulario de Carga")
+        self.geometry("400x360")
+        self.resizable(True, True)
+        self.configure(fg_color=C_BG)
+        
+        # --- CÓDIGO NATIVO PARA LA BARRA DE TÍTULO OSCURA ---
+        self.update() 
+        
+        self.transient(master)
+        self.grab_set()
+
+
+        # Centrar la ventanita
+        self.update_idletasks()
+        x = (self.winfo_screenwidth() // 2) - (400 // 2)
+        y = (self.winfo_screenheight() // 2) - (350 // 2)
+        self.geometry(f"+{x}+{y}")
+        
+        ctk.CTkLabel(self, text="Pega los datos de la NI:", font=FUENTE_SUBTITULO, text_color=C_PRIMARY).pack(pady=(20, 10))
+
+        
+        #self.scroll_frame.grid_remove()
+        
+        self.entry_Texto = ctk.CTkTextbox(self,font=FUENTE_TEXTO,width=400,height=200)
+        self.entry_Texto.pack(fill="both", expand=True, padx=20, pady=5)
+
+        self.btn_guardar = ctk.CTkButton(self, text="Guardar", command=self.procesar_datos)
+        self.btn_guardar.pack(pady=(15, 20))
+
+    def procesar_datos(self):
+        contenido = self.entry_Texto.get(index1 = '0.0',index2='end')
+        self.master.procesar_archivo_subido(contenido)
+        self.destroy()
+
+
 # ===========================================================
 # DIÁLOGO PARA EL FORMULARIO DE CARGA
 # ===========================================================
@@ -866,7 +923,7 @@ class DialogoFormularioCarga(ctk.CTkToplevel):
     def __init__(self, master):
         super().__init__(master)
         self.title("Formulario de Carga")
-        self.geometry("400x350")
+        self.geometry("400x360")
         self.resizable(True, True)
         self.configure(fg_color=C_BG)
         
@@ -1014,16 +1071,32 @@ class DialogoFormularioCarga(ctk.CTkToplevel):
             self.entry_fecha.delete(16, "end")
 
     def _validar_numeros_folio(self, event):
+        # 1. Ignorar teclas de navegación para que el usuario pueda moverse por el texto
+        if event.keysym in ['Left', 'Right', 'Up', 'Down']:
+            return
+    
         texto_actual = self.entry_folio.get()
+    
+        if not texto_actual:
+            return
         
-        # Si hay texto y al menos un carácter no es número
-        if texto_actual and not texto_actual.isdigit():
-            # Extraer únicamente los caracteres que sean dígitos
-            texto_limpio = "".join([c for c in texto_actual if c.isdigit()])
+        # 2. Limpiar el texto dejando ÚNICAMENTE números (elimina letras, espacios y signos)
+        texto_limpio = "".join([c for c in texto_actual if c.isdigit()])
+        
+        # 3. Aplicar la longitud máxima (por ejemplo, 8 caracteres)
+        longitud_maxima = 8
+        if len(texto_limpio) > longitud_maxima:
+            texto_limpio = texto_limpio[:longitud_maxima]
             
-            # Borrar el contenido actual y poner el texto limpio
+        # 4. Solo actualizar el campo si hubo algún cambio (borrado de letras o recorte)
+        # Esto evita que el cursor salte al final innecesariamente
+        if texto_actual != texto_limpio:
             self.entry_folio.delete(0, "end")
             self.entry_folio.insert(0, texto_limpio)
+            
+            
+
+        
 
 # ===========================================================
 # DIÁLOGO PERSONALIZADO PARA TOKEN AZURE
@@ -1810,7 +1883,9 @@ class NotaApp(ctk.CTk):
         ctk.CTkButton(h, text="Limpiar", font=FUENTE_TEXTO, width=80, fg_color=C_CARD, hover_color="#475569", command=lambda: self.terminal.delete("1.0", "end")).pack(side="right", padx=5)
         ctk.CTkButton(h, text="💾 Guardar", font=FUENTE_TEXTO, width=90, fg_color=C_PRIMARY, command=self._guardar_resultado).pack(side="right", padx=5)
         ctk.CTkButton(h, text="📋 Copiar", font=FUENTE_TEXTO, width=90, fg_color=C_SUCCESS, hover_color="#059669", command=self._copiar_resultado).pack(side="right", padx=5)
-        ctk.CTkButton(h, text="🔼 Cargar", font=FUENTE_TEXTO, width=90, fg_color=C_CARGA, hover_color="#2D8388", command=self.abrir_popup_carga).pack(side="right", padx=5)
+        boton_cargar = ctk.CTkButton(h, text="🔼 Cargar", font=FUENTE_TEXTO, width=90, fg_color=C_CARGA, hover_color="#2D8388", command=self.abrir_popup_carga)
+        ToolTip(boton_cargar,"Se utiliza para añadir la informacion adicional a la NI puede ser desde un formulario o un txt")
+        boton_cargar.pack(side="right", padx=5)
 
         self.terminal = ctk.CTkTextbox(frame, fg_color=C_PANEL, text_color=C_TEXT, font=("Consolas", 13), border_width=1, border_color=C_CARD, height=150)
         self.terminal.grid(row=1, column=0, sticky="nsew", padx=15, pady=(0, 15))
@@ -1841,71 +1916,81 @@ class NotaApp(ctk.CTk):
         
         # 1. Guardar el contenido en una variable de clase para que puedas acceder 
         #    a ella después desde otros botones o funciones.
-        self.texto_cargado = contenido_texto 
+        texto_cargado = self.limpiar_acentos(contenido_texto) 
         self.datos_extraidos_txt = {}
         # 2. Pintarlo en la terminal para que el usuario lo vea
         self.terminal.delete("1.0", "end")
         self.terminal.insert("end", contenido_texto)
         self._log("\n✅ Archivo cargado y almacenado correctamente.")
-        
+
+        trans = str.maketrans("", "", "¡,!,:")
         # 3. Aquí puedes hacer tu lógica de búsqueda a futuro
         # Ejemplo: Si necesitas buscar algo específico en el texto
-        b_folio = re.search(r"(?:Folio RFC|Folio|RFC|Ticket):\s*(.*)", contenido_texto, re.IGNORECASE)
+        b_folio = re.search(r"(?:Folio RFC|Folio|RFC|Ticket)\s*(.*)", texto_cargado, re.IGNORECASE)
         if b_folio:
-            self.datos_extraidos_txt["folio RFC"] = b_folio.group(1).strip()
+            self.datos_extraidos_txt["folio RFC"] = b_folio.group(1).translate(trans).strip()
             
         # Descripción
-        b_desc = re.search(r"Descripción:\s*(.*)", contenido_texto, re.IGNORECASE)
+        b_desc = re.search(r"(?:Descripcion)\s*(.*)", texto_cargado, re.IGNORECASE)
         if b_desc:
-            self.datos_extraidos_txt["descripcion"] = b_desc.group(1).strip()
+            self.datos_extraidos_txt["descripcion"] = b_desc.group(1).translate(trans).strip()
             
         # Afectación
-        b_afec = re.search(r"Afectación a:\s*(.*)", contenido_texto, re.IGNORECASE)
+        b_afec = re.search(r"Afectación a\s*(.*)", texto_cargado, re.IGNORECASE)
         if b_afec:
-            self.datos_extraidos_txt["afectacion"] = b_afec.group(1).strip()
+            self.datos_extraidos_txt["afectacion"] = b_afec.group(1).translate(trans).strip()
 
         # Preguntas
         # 1. ¿De qué se trata el cambio?
-        b_q1 = re.search(r"1\.- ¿De qué se trata el cambio\?\s*(.*?)(?=2\.-)", contenido_texto, re.IGNORECASE | re.DOTALL)
+        b_q1 = re.search(r"1\.- ¿De qué se trata el cambio\?\s*(.*?)(?=2\.-)", texto_cargado, re.IGNORECASE | re.DOTALL)
         if b_q1:
             self.datos_extraidos_txt["q1"] = b_q1.group(1).strip()
 
         # 2. ¿Es corrección de una incidencia? (Si / No)
-        b_q2 = re.search(r"2\.- ¿Es corrección de una incidencia\? \(Si / No\)\s*(.*?)(?=3\.-)", contenido_texto, re.IGNORECASE | re.DOTALL)
+        b_q2 = re.search(r"2\.- ¿Es corrección de una incidencia\? \(Si / No\)\s*(.*?)(?=3\.-)", texto_cargado, re.IGNORECASE | re.DOTALL)
         if b_q2:
             self.datos_extraidos_txt["q2"] = b_q2.group(1).strip()
 
         # 3. ¿Es automatizado (Si / No)?
-        b_q3 = re.search(r"3\.- ¿Es automatizado \(Si / No\)\?\s*(.*?)(?=4\.-)", contenido_texto, re.IGNORECASE | re.DOTALL)
+        b_q3 = re.search(r"3\.- ¿Es automatizado \(Si / No\)\?\s*(.*?)(?=4\.-)", texto_cargado, re.IGNORECASE | re.DOTALL)
         if b_q3:
             self.datos_extraidos_txt["q3"] = b_q3.group(1).strip()
 
         # 4. ¿Qué ventaja tendremos de implementar este cambio hoy?
-        b_q4 = re.search(r"4\.- ¿Qué ventaja tendremos de implementar este cambio hoy\?\s*(.*?)(?=5\.-)", contenido_texto, re.IGNORECASE | re.DOTALL)
+        b_q4 = re.search(r"4\.- ¿Qué ventaja tendremos de implementar este cambio hoy\?\s*(.*?)(?=5\.-)", texto_cargado, re.IGNORECASE | re.DOTALL)
         if b_q4:
             self.datos_extraidos_txt["q4"] = b_q4.group(1).strip()
 
         # 5. ¿Qué sucede si nos esperamos a implementar el cambio?
-        b_q5 = re.search(r"5\.- ¿Qué sucede si nos esperamos a implementar el cambio\?\s*(.*?)(?=6\.-)", contenido_texto, re.IGNORECASE | re.DOTALL)
+        b_q5 = re.search(r"5\.- ¿Qué sucede si nos esperamos a implementar el cambio\?\s*(.*?)(?=6\.-)", texto_cargado, re.IGNORECASE | re.DOTALL)
         if b_q5:
             self.datos_extraidos_txt["q5"] = b_q5.group(1).strip()
 
         # 6. ¿Cómo se puede validar el cambio desde los sistemas una vez implementado?
-        b_q6 = re.search(r"6\.- ¿Cómo se puede validar el cambio desde los sistemas una vez implementado\?\s*(.*?)(?=Detalle de la nota:|$)", contenido_texto, re.IGNORECASE | re.DOTALL)
+        b_q6 = re.search(r"6\.- ¿Cómo se puede validar el cambio desde los sistemas una vez implementado\?\s*(.*?)(?=Detalle de la nota:|$)", texto_cargado, re.IGNORECASE | re.DOTALL)
         if b_q6:
             self.datos_extraidos_txt["q6"] = b_q6.group(1).strip()
 
         # implementacion
-        b_fecha = re.search(r"(?:Fecha|Fecha de implementación|implementacion):\s*(.*)",contenido_texto, re.IGNORECASE)
+        b_fecha = re.search(r"(?:Fecha|Fecha de implementación|implementacion|liberacion)\s*(.*)",texto_cargado, re.IGNORECASE)
         if b_fecha:
-            self.datos_extraidos_txt["implementacion"] = b_fecha
+            self.datos_extraidos_txt["implementacion"] = b_fecha.group(1).translate(trans).strip()
 
         # Avisar en la terminal qué se encontró
-        self._log(f"💡 Campos detectados: {list(self.datos_extraidos_txt.keys())}")
+        self._log(f"💡 Campos detectados: {list(self.datos_extraidos_txt.values())}")
 
     def guardar_datos_formulario(self, datos):
         self.datos_extraidos_txt = datos 
         print(datos)
+
+    def limpiar_acentos(self,texto):
+        # NFD separa los caracteres base de sus acentos
+        texto_normalizado = unicodedata.normalize('NFD', texto)
+
+        # Filtramos ignorando la categoría 'Mn' (Mark, Nonspacing -> que son los acentos)
+        texto_limpio = ''.join(c for c in texto_normalizado if unicodedata.category(c) != 'Mn')
+        #print(texto_limpio)
+        return texto_limpio
     
 
 
