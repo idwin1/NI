@@ -589,7 +589,23 @@ class NotaInstalacionManager:
         return "\n".join(lineas).rstrip()
 
     def armar_nota_manual(self, componentes, excepto="N/A", rollback_zip=None, equipo_escalamiento=None, incluir_escalamiento=True):
-        partes = [self.bloque_componentes_manual(componentes), f"Excepto a:\n{excepto}"]
+        partes = [
+            "DETALLE DE SOLICITUD",
+            "Afectación a:\n",
+            "Folio RFC:\n",
+            "Empresa: Coppel\n",
+            "Descripción:\n",
+            "1.- ¿De qué se trata el cambio?\n",
+            "2.- ¿Es corrección de una incidencia? (Si / No)\n",
+            "3.- ¿Es automatizado (Si / No)?\n",
+            "4.- ¿Qué ventaja tendremos de implementar este cambio hoy?\n",
+            "5.- ¿Qué sucede si nos esperamos a implementar el cambio?\n",
+            "6.- ¿Cómo se puede validar el cambio desde los sistemas una vez implementado?\n",
+            "Detalle de la nota:",
+            "Fecha de implementación:\n",
+            self.bloque_componentes_manual(componentes),
+            f"Excepto a:\n{excepto}"
+        ]
         
         if rollback_zip: 
             partes.append(self.bloque_rollback_manual(rollback_zip["nombre"], rollback_zip["md5"], rollback_zip["drive"], rollback_zip.get("componentes", [])))  
