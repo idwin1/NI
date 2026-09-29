@@ -7,6 +7,7 @@ import zipfile
 import re
 import requests
 import threading
+import datetime
 import tkinter as tk
 import customtkinter as ctk
 from tkinter import messagebox, filedialog, simpledialog
@@ -30,6 +31,7 @@ C_SUCCESS = "#10b981"
 C_DANGER = "#ef4444"
 C_TEXT = "#f8fafc"
 C_MUTED = "#94a3b8"
+C_CARGA = "#1BC7D0"
 
 FUENTE_TITULO = ("Segoe UI", 16, "bold")
 FUENTE_SUBTITULO = ("Segoe UI", 13, "bold")
@@ -588,21 +590,35 @@ class NotaInstalacionManager:
             
         return "\n".join(lineas).rstrip()
 
-    def armar_nota_manual(self, componentes, excepto="N/A", rollback_zip=None, equipo_escalamiento=None, incluir_escalamiento=True):
+    def armar_nota_manual(self, componentes, excepto="N/A", rollback_zip=None, equipo_escalamiento=None, incluir_escalamiento=True, datos_extraidos=None):
+        if datos_extraidos is None:
+            datos_extraidos = {}
+
+        folio = datos_extraidos.get("folio RFC", "")
+        afectacion = datos_extraidos.get("afectacion", "")
+        descripcion = datos_extraidos.get("descripcion", "")
+        q1 = datos_extraidos.get("q1","")
+        q2 = datos_extraidos.get("q2","")
+        q3 = datos_extraidos.get("q3","")
+        q4 = datos_extraidos.get("q4","")
+        q5 = datos_extraidos.get("q5","")
+        q6 = datos_extraidos.get("q6","")
+        fecha = datos_extraidos.get("implementacion","")
+
         partes = [
             "DETALLE DE SOLICITUD",
-            "Afectación a:\n",
-            "Folio RFC:\n",
+            f"Afectación a: {afectacion}\n",
+            f"Folio RFC: {folio}\n",
             "Empresa: Coppel\n",
-            "Descripción:\n",
-            "1.- ¿De qué se trata el cambio?\n",
-            "2.- ¿Es corrección de una incidencia? (Si / No)\n",
-            "3.- ¿Es automatizado (Si / No)?\n",
-            "4.- ¿Qué ventaja tendremos de implementar este cambio hoy?\n",
-            "5.- ¿Qué sucede si nos esperamos a implementar el cambio?\n",
-            "6.- ¿Cómo se puede validar el cambio desde los sistemas una vez implementado?\n",
+            f"Descripción: {descripcion}\n",
+            f"1.- ¿De qué se trata el cambio?\n{q1}",
+            f"2.- ¿Es corrección de una incidencia? (Si / No)\n{q2}",
+            f"3.- ¿Es automatizado (Si / No)?\n{q3}",
+            f"4.- ¿Qué ventaja tendremos de implementar este cambio hoy?\n{q4}",
+            f"5.- ¿Qué sucede si nos esperamos a implementar el cambio?\n{q5}",
+            f"6.- ¿Cómo se puede validar el cambio desde los sistemas una vez implementado?\n{q6}",
             "Detalle de la nota:",
-            "Fecha de implementación:\n",
+            f"Fecha de implementación: {fecha}",
             self.bloque_componentes_manual(componentes),
             f"Excepto a:\n{excepto}"
         ]
@@ -639,7 +655,22 @@ class NotaInstalacionManager:
         partes.extend([f"{i}. {p}" for i, p in enumerate(pasos, 1)])
         return "\n".join(partes)
 
-    def armar_nota_azure(self, bloques_componentes, excepto="N/A", rollback_bloques=None, backup_texto="", equipo_escalamiento=None):
+    def armar_nota_azure(self, bloques_componentes, excepto="N/A", rollback_bloques=None, backup_texto="", equipo_escalamiento=None, datos_extraidos=None):
+        if datos_extraidos is None:
+            datos_extraidos = {}
+        
+        folio = datos_extraidos.get("folio RFC", "")
+        afectacion = datos_extraidos.get("afectacion", "")
+        descripcion = datos_extraidos.get("descripcion", "")
+        q1 = datos_extraidos.get("q1","")
+        q2 = datos_extraidos.get("q2","")
+        q3 = datos_extraidos.get("q3","")
+        q4 = datos_extraidos.get("q4","")
+        q5 = datos_extraidos.get("q5","")
+        q6 = datos_extraidos.get("q6","")
+        fecha = datos_extraidos.get("implementacion","")
+
+
         detalle_nota = "\n\n".join(bloques_componentes)
         bloques_rollback = "\n\n".join(rollback_bloques or [])
         escalamiento = self.bloque_escalamiento(self.obtener_escalamiento_de_equipo(equipo_escalamiento) if equipo_escalamiento and equipo_escalamiento != "-- Todas las personas --" else self.obtener_escalamiento())
@@ -654,18 +685,19 @@ class NotaInstalacionManager:
 
         partes = [
             "DETALLE DE SOLICITUD",
-            "Afectación a:\n",
-            "Folio RFC:\n",
-            "Empresa:\n",
-            "Descripción:\n",
-            "1.- ¿De qué se trata el cambio?\n",
-            "2.- ¿Es corrección de una incidencia? (Si / No)\n",
-            "3.- ¿Es automatizado (Si / No)?\n",
-            "4.- ¿Qué ventaja tendremos de implementar este cambio hoy?\n",
-            "5.- ¿Qué sucede si nos esperamos a implementar el cambio?\n",
+            f"Afectación a: {afectacion}\n",
+            f"Folio RFC: {folio}\n",
+            "Empresa: Coppel\n",
+            f"Descripción: {descripcion}\n",
+            f"1.- ¿De qué se trata el cambio?\n{q1}",
+            f"2.- ¿Es corrección de una incidencia? (Si / No)\n{q2}",
+            f"3.- ¿Es automatizado (Si / No)?\n{q3}",
+            f"4.- ¿Qué ventaja tendremos de implementar este cambio hoy?\n{q4}",
+            f"5.- ¿Qué sucede si nos esperamos a implementar el cambio?\n{q5}",
+            f"6.- ¿Cómo se puede validar el cambio desde los sistemas una vez implementado?\n{q6}",
             "6.- ¿Cómo se puede validar el cambio desde los sistemas una vez implementado?\n",
             "Detalle de la nota:",
-            "Fecha de implementación:\n",
+            f"Fecha de implementación: {fecha}",
             detalle_nota,
             f"Excepto a:\n{excepto}",
             f"Rollback:\n{bloques_rollback}",
@@ -674,6 +706,8 @@ class NotaInstalacionManager:
             "\n".join(rutas)
         ]
         return "\n\n".join(partes)
+
+    
 
 # ===========================================================
 # DIÁLOGO DE BÚSQUEDA
@@ -753,6 +787,243 @@ class PipelineReleaseSearchDialog(ctk.CTkToplevel):
     def _seleccionar(self, release):
         self.on_seleccionar(release)
         self.destroy()
+
+
+# ===========================================================
+# DIÁLOGO PERSONALIZADO Ventana de carga
+# ===========================================================
+class DialogoPopUp(ctk.CTkToplevel):
+    def __init__(self, master):
+        super().__init__(master)
+        self.title("Opciones de Carga")
+        self.geometry("250x180")
+        self.resizable(False, False)
+        self.configure(fg_color=C_BG)
+        self.valor = None
+        
+        # Bloquear la ventana principal hasta que se cierre esta
+        self.transient(master)
+        self.grab_set()
+
+        # Centrar la ventanita respecto a la PANTALLA completa
+        self.update_idletasks()
+        ancho_pantalla = self.winfo_screenwidth()
+        alto_pantalla = self.winfo_screenheight()
+        
+        x = (ancho_pantalla // 2) - (250 // 2)
+        y = (alto_pantalla // 2) - (180 // 2)
+        self.geometry(f"+{x}+{y}")
+        # Etiqueta de instrucción
+        ctk.CTkLabel(self, text="Selecciona el método de carga:", font=FUENTE_TEXTO).pack(pady=15)
+
+        # Botón 1: Subir archivo
+        btn_archivo = ctk.CTkButton(
+            self, 
+            text="📄 Subir archivo de texto", 
+            command=self.accion_subir_archivo,
+            fg_color="#2b7b80", # Ajusta al color de tu app
+            hover_color="#1f5c60"
+        )
+        btn_archivo.pack(pady=5, padx=20, fill="x")
+
+        # Botón 2: Formulario
+        btn_form = ctk.CTkButton(
+            self, 
+            text="📝 Formulario", 
+            command=self.accion_formulario,
+            fg_color="#2b7b80",
+            hover_color="#1f5c60"
+        )
+        btn_form.pack(pady=5, padx=20, fill="x")
+
+    def accion_subir_archivo(self):
+        ruta_archivo = filedialog.askopenfilename(
+            title="Seleccionar nota guardada",
+            filetypes=[("Archivos de texto", "*.txt"), ("Todos los archivos", "*.*")]
+        )
+
+        if not ruta_archivo:
+            return
+
+        try:
+            with open(ruta_archivo, "r", encoding="utf-8") as archivo:
+                contenido = archivo.read()
+
+            # En lugar de usar terminal, mandamos la info a un nuevo método en NotaApp
+            self.master.procesar_archivo_subido(contenido)
+            self.destroy() # Cerramos este pop-up
+
+        except Exception as e:
+            messagebox.showerror("Error de Lectura", f"No se pudo leer el archivo:\n{e}")
+    def accion_formulario(self):
+        self.destroy() # Primero cerramos esta ventanita pequeñita
+        DialogoFormularioCarga(self.master) # Abrimos el formulario grande apuntando a NotaApp
+    
+# ===========================================================
+# DIÁLOGO PARA EL FORMULARIO DE CARGA
+# ===========================================================
+class DialogoFormularioCarga(ctk.CTkToplevel):
+    def __init__(self, master):
+        super().__init__(master)
+        self.title("Formulario de Carga")
+        self.geometry("400x350")
+        self.resizable(True, True)
+        self.configure(fg_color=C_BG)
+        
+        # --- CÓDIGO NATIVO PARA LA BARRA DE TÍTULO OSCURA ---
+        self.update() 
+        
+        self.transient(master)
+        self.grab_set()
+
+        # Centrar la ventanita
+        self.update_idletasks()
+        x = (self.winfo_screenwidth() // 2) - (400 // 2)
+        y = (self.winfo_screenheight() // 2) - (350 // 2)
+        self.geometry(f"+{x}+{y}")
+        
+        ctk.CTkLabel(self, text="Completa los datos de la nota:", font=FUENTE_SUBTITULO, text_color=C_PRIMARY).pack(pady=(20, 10))
+
+        # ==========================================
+        # 2. ÁREA DE SCROLL INVISIBLE (En medio)
+        # ==========================================
+        self.scroll_frame = ctk.CTkScrollableFrame(
+            self, 
+            fg_color="transparent",
+            scrollbar_button_color=C_BG,       # Oculta la barra
+            scrollbar_button_hover_color=C_BG  # Oculta la barra al pasar el mouse
+        )
+        # expand=True hace que tome todo el espacio disponible en el medio
+        self.scroll_frame.pack(fill="both", expand=True, padx=10, pady=5)
+        #self.scroll_frame.grid_remove()
+        
+
+        # --- CAMPOS DEL FORMULARIO (Ejemplos) ---
+        self.entry_fecha = ctk.CTkEntry(self.scroll_frame, placeholder_text="Fecha (DD/MM/AAAA)", font=FUENTE_TEXTO, width=300, height=35)
+        self.entry_fecha.pack(pady=10)
+        self.entry_fecha.bind("<KeyRelease>", self._autocompletar_fecha)
+
+        self.entry_afectacion = ctk.CTkOptionMenu(
+            self.scroll_frame, 
+            values=["Local", "Regional", "Nacional"], 
+            font=FUENTE_TEXTO,
+            width=300, 
+            height=35,
+            # Igualamos los colores por defecto de un CTkEntry en modo oscuro
+            fg_color="#343638",             
+            button_color="#343638",         
+            button_hover_color="#565b5e",  
+            dropdown_fg_color="#343638",    
+            dropdown_hover_color="#565b5e", 
+            text_color="white"
+        )
+        self.entry_afectacion.pack(pady=10)
+
+        self.entry_folio = ctk.CTkEntry(self.scroll_frame, placeholder_text="Folio RFC", font=FUENTE_TEXTO, width=300, height=35)
+        self.entry_folio.pack(pady=10)
+        self.entry_folio.bind("<KeyRelease>", self._validar_numeros_folio)
+        
+        self.entry_desc = ctk.CTkEntry(self.scroll_frame, placeholder_text="Descripción", font=FUENTE_TEXTO, width=300, height=35)
+        self.entry_desc.pack(pady=10)
+        
+        self.entry_q1 = ctk.CTkEntry(self.scroll_frame, placeholder_text="1.- ¿De qué se trata el cambio?", font=FUENTE_TEXTO, width=300, height=35)
+        self.entry_q1.pack(pady=10)
+
+        self.entry_q2 = ctk.CTkEntry(self.scroll_frame, placeholder_text="2.- ¿Es corrección de una incidencia? (Si / No)", font=FUENTE_TEXTO, width=300, height=35)
+        self.entry_q2.pack(pady=10)
+
+        self.entry_q3 = ctk.CTkEntry(self.scroll_frame, placeholder_text="3.- ¿Es automatizado (Si / No)?", font=FUENTE_TEXTO, width=300, height=35)
+        self.entry_q3.pack(pady=10)
+
+        self.entry_q4 = ctk.CTkEntry(self.scroll_frame, placeholder_text="4.- ¿Qué ventaja tendremos de implementar este cambio hoy?", font=FUENTE_TEXTO, width=300, height=35)
+        self.entry_q4.pack(pady=10)
+
+        self.entry_q5 = ctk.CTkEntry(self.scroll_frame, placeholder_text="5.- ¿Qué sucede si nos esperamos a implementar el cambio?", font=FUENTE_TEXTO, width=300, height=35)
+        self.entry_q5.pack(pady=10)
+
+        self.entry_q6 = ctk.CTkEntry(self.scroll_frame, placeholder_text="6.- ¿Cómo se puede validar el cambio desde los sistemas una vez implementado?", font=FUENTE_TEXTO, width=300, height=35)
+        self.entry_q6.pack(pady=10)
+        
+        
+        # Contenedor de botones
+        btn_frame = ctk.CTkFrame(self, fg_color="transparent")
+        btn_frame.pack(side="bottom", pady=(5, 20))
+        
+        ctk.CTkButton(btn_frame, text="💾 Guardar", font=FUENTE_TEXTO, fg_color=C_SUCCESS, hover_color="#059669", command=self._guardar).pack(side="left", padx=10)
+        ctk.CTkButton(btn_frame, text="Cancelar", font=FUENTE_TEXTO, fg_color=C_CARD, hover_color="#dc2626", command=self.destroy).pack(side="left", padx=10)
+        
+    def _guardar(self):
+        self.datos = {}
+        # Aquí recolectas los datos
+        fecha = self.entry_fecha.get()
+        afectacion = self.entry_afectacion.get()
+        folio = self.entry_folio.get()
+        descripcion = self.entry_desc.get()
+        q1 = self.entry_q1.get()
+        q2 = self.entry_q2.get()
+        q3 = self.entry_q3.get()
+        q4 = self.entry_q4.get()
+        q5 = self.entry_q5.get()
+        q6 = self.entry_q6.get()
+
+        self.datos["fecha"] = fecha
+        self.datos["afectacion"] = afectacion
+        self.datos["folio RFC"] = folio
+        self.datos["descripcion"] = descripcion
+        self.datos["q1"] = q1
+        self.datos["q2"] = q2
+        self.datos["q3"] = q3
+        self.datos["q4"] = q4
+        self.datos["q5"] = q5
+        self.datos["q6"] = q6
+        # Se los mandas a la aplicación principal a través de `self.master`
+        # (Asegúrate de crear un método para recibirlos, o simplemente usa _log por ahora)
+        self.master._log(f"\n✅ Datos de formulario guardados:\nFolio: {folio}\nDescripción: {descripcion}")
+        self.master.guardar_datos_formulario(self.datos)
+        self.destroy()
+
+    def _autocompletar_fecha(self, event):
+        # Ignorar si el usuario está presionando la tecla de borrar (BackSpace) o flechas
+        if event.keysym in ['BackSpace', 'Left', 'Right', 'Up', 'Down']:
+            return
+
+        texto_actual = self.entry_fecha.get()
+        if not texto_actual:
+            return
+
+        # 1. VALIDACIÓN: Evitar letras. Si el último carácter no es número ni separador, se borra.
+        ultimo_char = texto_actual[-1]
+        if not ultimo_char.isdigit() and ultimo_char not in ['/', ' ', ':']:
+            self.entry_fecha.delete(len(texto_actual)-1, "end")
+            return
+
+        longitud = len(self.entry_fecha.get())
+
+        # 2. AUTOCOMPLETADO DE FECHA Y HORA (DD/MM/AAAA HH:MM)
+        if longitud == 2 or longitud == 5:
+            self.entry_fecha.insert("end", "/")
+            
+        elif longitud == 10:
+            self.entry_fecha.insert("end", " ")  # Agrega un espacio después del año
+            
+        elif longitud == 13:
+            self.entry_fecha.insert("end", ":")  # Agrega los dos puntos de la hora
+            
+        # 3. LÍMITE: Bloquear que escriban más de 16 caracteres
+        elif longitud > 16:
+            self.entry_fecha.delete(16, "end")
+
+    def _validar_numeros_folio(self, event):
+        texto_actual = self.entry_folio.get()
+        
+        # Si hay texto y al menos un carácter no es número
+        if texto_actual and not texto_actual.isdigit():
+            # Extraer únicamente los caracteres que sean dígitos
+            texto_limpio = "".join([c for c in texto_actual if c.isdigit()])
+            
+            # Borrar el contenido actual y poner el texto limpio
+            self.entry_folio.delete(0, "end")
+            self.entry_folio.insert(0, texto_limpio)
 
 # ===========================================================
 # DIÁLOGO PERSONALIZADO PARA TOKEN AZURE
@@ -882,6 +1153,7 @@ class NotaApp(ctk.CTk):
 
         self._construir_interfaz()
         self._validar_config_inicial()
+        self.datos_extraidos_txt = {}
 
     def _limpiar_entry(self, entry):
         entry.delete(0, "end")
@@ -1216,7 +1488,7 @@ class NotaApp(ctk.CTk):
 
     def _generar_nota_manual(self):
         if not self.componentes_manual: return messagebox.showwarning("Aviso", "Agrega al menos un componente principal.")
-        self._mostrar_resultado(self.manager.armar_nota_manual(self.componentes_manual, self.entry_excepto_manual.get().strip() or "N/A", self.rollback_manual, self.combo_equipo_manual.get(), self.check_incluir_escalamiento_manual.get()))
+        self._mostrar_resultado(self.manager.armar_nota_manual(self.componentes_manual, self.entry_excepto_manual.get().strip() or "N/A", self.rollback_manual, self.combo_equipo_manual.get(), self.check_incluir_escalamiento_manual.get(),datos_extraidos=self.datos_extraidos_txt))
 
     # =======================================================
     # TAB AZURE
@@ -1498,7 +1770,7 @@ class NotaApp(ctk.CTk):
     def _generar_nota_azure(self):
         if not self.bloques_azure: return messagebox.showwarning("Aviso", "Agrega al menos un bloque principal.")
         bt = self.manager.bloque_backup_sre(self.entry_backup_componente.get().strip() or "Componente", [l.strip() for l in self.text_backup_pasos.get("1.0", "end").splitlines() if l.strip()]) if self.check_incluir_backup.get() else ""
-        self._mostrar_resultado(self.manager.armar_nota_azure(self.bloques_azure, self.entry_excepto_azure.get().strip() or "N/A", self.bloques_rollback_azure or None, bt, self.combo_equipo_azure.get()))
+        self._mostrar_resultado(self.manager.armar_nota_azure(self.bloques_azure, self.entry_excepto_azure.get().strip() or "N/A", self.bloques_rollback_azure or None, bt, self.combo_equipo_azure.get(), datos_extraidos=self.datos_extraidos_txt))
 
     def _validar_config_inicial(self):
         # --- NUEVO: Pedir PAT con el diálogo de diseño personalizado ---
@@ -1538,6 +1810,7 @@ class NotaApp(ctk.CTk):
         ctk.CTkButton(h, text="Limpiar", font=FUENTE_TEXTO, width=80, fg_color=C_CARD, hover_color="#475569", command=lambda: self.terminal.delete("1.0", "end")).pack(side="right", padx=5)
         ctk.CTkButton(h, text="💾 Guardar", font=FUENTE_TEXTO, width=90, fg_color=C_PRIMARY, command=self._guardar_resultado).pack(side="right", padx=5)
         ctk.CTkButton(h, text="📋 Copiar", font=FUENTE_TEXTO, width=90, fg_color=C_SUCCESS, hover_color="#059669", command=self._copiar_resultado).pack(side="right", padx=5)
+        ctk.CTkButton(h, text="🔼 Cargar", font=FUENTE_TEXTO, width=90, fg_color=C_CARGA, hover_color="#2D8388", command=self.abrir_popup_carga).pack(side="right", padx=5)
 
         self.terminal = ctk.CTkTextbox(frame, fg_color=C_PANEL, text_color=C_TEXT, font=("Consolas", 13), border_width=1, border_color=C_CARD, height=150)
         self.terminal.grid(row=1, column=0, sticky="nsew", padx=15, pady=(0, 15))
@@ -1559,6 +1832,83 @@ class NotaApp(ctk.CTk):
     def _log(self, text):
         self.terminal.insert("end", text + "\n")
         self.terminal.see("end")
+
+    def abrir_popup_carga(self):
+        dialog = DialogoPopUp(self)
+
+    def procesar_archivo_subido(self, contenido_texto):
+        """ Esta función recibe el texto del txt y se encarga de todo el procesamiento en la app principal """
+        
+        # 1. Guardar el contenido en una variable de clase para que puedas acceder 
+        #    a ella después desde otros botones o funciones.
+        self.texto_cargado = contenido_texto 
+        self.datos_extraidos_txt = {}
+        # 2. Pintarlo en la terminal para que el usuario lo vea
+        self.terminal.delete("1.0", "end")
+        self.terminal.insert("end", contenido_texto)
+        self._log("\n✅ Archivo cargado y almacenado correctamente.")
+        
+        # 3. Aquí puedes hacer tu lógica de búsqueda a futuro
+        # Ejemplo: Si necesitas buscar algo específico en el texto
+        b_folio = re.search(r"(?:Folio RFC|Folio|RFC|Ticket):\s*(.*)", contenido_texto, re.IGNORECASE)
+        if b_folio:
+            self.datos_extraidos_txt["folio RFC"] = b_folio.group(1).strip()
+            
+        # Descripción
+        b_desc = re.search(r"Descripción:\s*(.*)", contenido_texto, re.IGNORECASE)
+        if b_desc:
+            self.datos_extraidos_txt["descripcion"] = b_desc.group(1).strip()
+            
+        # Afectación
+        b_afec = re.search(r"Afectación a:\s*(.*)", contenido_texto, re.IGNORECASE)
+        if b_afec:
+            self.datos_extraidos_txt["afectacion"] = b_afec.group(1).strip()
+
+        # Preguntas
+        # 1. ¿De qué se trata el cambio?
+        b_q1 = re.search(r"1\.- ¿De qué se trata el cambio\?\s*(.*?)(?=2\.-)", contenido_texto, re.IGNORECASE | re.DOTALL)
+        if b_q1:
+            self.datos_extraidos_txt["q1"] = b_q1.group(1).strip()
+
+        # 2. ¿Es corrección de una incidencia? (Si / No)
+        b_q2 = re.search(r"2\.- ¿Es corrección de una incidencia\? \(Si / No\)\s*(.*?)(?=3\.-)", contenido_texto, re.IGNORECASE | re.DOTALL)
+        if b_q2:
+            self.datos_extraidos_txt["q2"] = b_q2.group(1).strip()
+
+        # 3. ¿Es automatizado (Si / No)?
+        b_q3 = re.search(r"3\.- ¿Es automatizado \(Si / No\)\?\s*(.*?)(?=4\.-)", contenido_texto, re.IGNORECASE | re.DOTALL)
+        if b_q3:
+            self.datos_extraidos_txt["q3"] = b_q3.group(1).strip()
+
+        # 4. ¿Qué ventaja tendremos de implementar este cambio hoy?
+        b_q4 = re.search(r"4\.- ¿Qué ventaja tendremos de implementar este cambio hoy\?\s*(.*?)(?=5\.-)", contenido_texto, re.IGNORECASE | re.DOTALL)
+        if b_q4:
+            self.datos_extraidos_txt["q4"] = b_q4.group(1).strip()
+
+        # 5. ¿Qué sucede si nos esperamos a implementar el cambio?
+        b_q5 = re.search(r"5\.- ¿Qué sucede si nos esperamos a implementar el cambio\?\s*(.*?)(?=6\.-)", contenido_texto, re.IGNORECASE | re.DOTALL)
+        if b_q5:
+            self.datos_extraidos_txt["q5"] = b_q5.group(1).strip()
+
+        # 6. ¿Cómo se puede validar el cambio desde los sistemas una vez implementado?
+        b_q6 = re.search(r"6\.- ¿Cómo se puede validar el cambio desde los sistemas una vez implementado\?\s*(.*?)(?=Detalle de la nota:|$)", contenido_texto, re.IGNORECASE | re.DOTALL)
+        if b_q6:
+            self.datos_extraidos_txt["q6"] = b_q6.group(1).strip()
+
+        # implementacion
+        b_fecha = re.search(r"(?:Fecha|Fecha de implementación|implementacion):\s*(.*)",contenido_texto, re.IGNORECASE)
+        if b_fecha:
+            self.datos_extraidos_txt["implementacion"] = b_fecha
+
+        # Avisar en la terminal qué se encontró
+        self._log(f"💡 Campos detectados: {list(self.datos_extraidos_txt.keys())}")
+
+    def guardar_datos_formulario(self, datos):
+        self.datos_extraidos_txt = datos 
+        print(datos)
+    
+
+
     
 
 if __name__ == "__main__":
