@@ -253,7 +253,7 @@ class NotaInstalacionManager:
         if search_text: params["searchText"] = search_text
         return self._get(f"https://vsrm.dev.azure.com/{self.organization}/{project}/_apis/release/releases", params=params).get("value", [])
 
-    def listar_definiciones_release(self, project, search_text=None, top=200):
+    def listar_definiciones_release(self, project, search_text=None, top=400):
         definiciones = self._get(f"https://vsrm.dev.azure.com/{self.organization}/{project}/_apis/release/definitions", params={"api-version": "7.1", "$top": top}).get("value", [])
         if search_text: definiciones = [d for d in definiciones if search_text.lower() in d.get("name", "").lower()]
         return definiciones
